@@ -10,8 +10,8 @@ import pandas as pd
 # Create a Stratey
 class cTrendsStrategy(bt.Strategy):
     params = (
-        ('periodRsi', 15),
-        ('periodBB', 20),
+        ('periodRsi', 4),
+        ('periodBB', 200),
         ('stopLoss', 0.02),
         ('printlog', False)
     )
@@ -24,6 +24,7 @@ class cTrendsStrategy(bt.Strategy):
         self.order = None
         self.buyprice = None
         self.buycomm = None
+        self.orderStop = None
 
         self.bb = bt.indicators.BollingerBands(self.datas[0], period=self.params.periodBB)
         self.rsi = bt.indicators.RSI(self.datas[0], period=self.params.periodRsi)
@@ -32,6 +33,8 @@ class cTrendsStrategy(bt.Strategy):
         if order.status in [order.Submitted, order.Accepted]:
             # Buy/Sell order submitted/accepted to/by broker - Nothing to do
             return
+        
+        self.exit_type = ''
         # Check if an order has been completed
         # Attention: broker could reject order if not enough cash
         # if order.status in [order.Completed]:
@@ -41,12 +44,25 @@ class cTrendsStrategy(bt.Strategy):
         #     self.bar_executed = len(self)
         # Write down: no pending order
         self.order = None
-    # def notify_trade(self, trade):
-    #     if not trade.isclosed:
-    #         return
 
-    #     # self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' %
+    def notify_trade(self, trade):
+        if not trade.isclosed:
+            return
+
+        # self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' %
         #          (trade.pnl, trade.pnlcomm))
+        
+        pnl = trade.pnl
+        pnlcomm = trade.pnlcomm
+        # Self.Close seria nosso take profit, pois ele só zera na inversão do indicador. 
+        if self.exit_type == '':
+            self.exit_type = 'StopLoss' if pnl < 0 else 'SelfClose'
+
+        #self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' % (pnl, pnlcomm))
+        
+        if self.exit_type == 'SelfClose':
+            self.broker.cancel(self.orderStop)
+
 
     def next(self):
         # Check if an order is pending ... if yes, we cannot send a 2nd one
@@ -68,20 +84,20 @@ class cTrendsStrategy(bt.Strategy):
             if (self.rsi[0] <= 30) and (self.dataclose[0] <= self.bb.bot[0]):# 
                 # BUY, BUY, BUY!!! (with all possible default parameters)
                 # Keep track of the created order to avoid a 2nd order
-                # self.order = self.buy()
-                # self.sell(price=self.data.close[0] * (1 - (self.params.stopLoss*0.01)), exectype=bt.Order.Stop)
-                stopPrice = self.data.close[0] * (1 - self.params.stopLoss*0.01)
-                takeProfitPrice = self.data.close[0] * (1 + self.params.stopLoss*0.01)
-                self.order = self.buy(exectype=bt.Order.Stop, price=self.data.close[0], stopprice=stopPrice)#, limitprice=take_profit_price) 
+                self.order = self.buy()
+                self.orderStop = self.sell(price=self.data.close[0] * (1 - (self.params.stopLoss*0.01)), exectype=bt.Order.Stop)
+                # stopPrice = self.data.close[0] * (1 - self.params.stopLoss*0.01)
+                # takeProfitPrice = self.data.close[0] * (1 + self.params.stopLoss*0.01)
+                # self.order = self.buy(exectype=bt.Order.Stop, price=self.data.close[0], stopprice=stopPrice)#, limitprice=take_profit_price) 
 
             elif (self.rsi[0] >= 70) and (self.dataclose[0] >= self.bb.top[0]): 
                 # SELL, SELL, SELL!!! (with all possible default parameters)
                 # Keep track of the created order to avoid a 2nd order
-                # self.order = self.sell()
-                # self.buy(price=self.data.close[0] * (1 + (self.params.stopLoss*0.01)), exectype=bt.Order.Stop)
-                stopPrice = self.data.close[0] * (1 + self.params.stopLoss*0.01)
-                takeProfitPrice = self.data.close[0] * (1 - self.params.stopLoss*0.01)   
-                self.order = self.sell(exectype=bt.Order.Stop, price=self.data.close[0], stopprice=stopPrice)#, limitprice=take_profit_price) 
+                self.order = self.sell()
+                self.orderStop = self.buy(price=self.data.close[0] * (1 + (self.params.stopLoss*0.01)), exectype=bt.Order.Stop)
+                # stopPrice = self.data.close[0] * (1 + self.params.stopLoss*0.01)
+                # takeProfitPrice = self.data.close[0] * (1 - self.params.stopLoss*0.01)   
+                # self.order = self.sell(exectype=bt.Order.Stop, price=self.data.close[0], stopprice=stopPrice)#, limitprice=take_profit_price) 
 
 if __name__ == '__main__':
     # Create a cerebro entity
@@ -90,13 +106,13 @@ if __name__ == '__main__':
     # Add a strategy
     strats = cerebro.optstrategy(
         cTrendsStrategy,
-        periodRsi=range(4, 5),
-        periodBB=range(20, 30),
-        stopLoss=range(1,5) 
+        periodRsi=range(4, 15),
+        periodBB=range(20, 200),
+        stopLoss=range(2,20) 
         )
 
      # Create a data feed
-    data = bt.feeds.PandasData(dataname=yf.download('BTC-USD', '2022-01-01', '2023-06-21', interval = "60m"))
+    data = bt.feeds.PandasData(dataname=yf.download('BTC-USD', '2015-07-01', '2023-06-21', interval = "1d"))
 
     # Add the Data Feed to Cerebro
     cerebro.adddata(data)
@@ -117,7 +133,7 @@ if __name__ == '__main__':
     cerebro.broker.setcommission(commission=0.0)
     
     # Variável optimizationResults retorna uma lista de todos os resultados
-    optimizationResults = cerebro.run(maxcpus=0)
+    optimizationResults = cerebro.run(maxcpus=4)
     #print(optimizationResults[0][0].broker.getvalue())
     paramsList = [[
         

@@ -11,17 +11,18 @@ import backtrader as bt
 import pandas as pd
 # Importando classe da estratégia cTrends
 from cTrends import cTrendsStrategy
+from Teeste import cTrendsStrategyTest
+# my_strategy = cTrendsStrategy()
 
-#my_strategy = cTrendsStrategy()
 
 
 if __name__ == '__main__':
     # Create a cerebro entity
     cerebro = bt.Cerebro() # writer=True # stdstats=False
     # Add a strategy
-    cerebro.addstrategy(cTrendsStrategy)
+    cerebro.addstrategy(cTrendsStrategyTest)
     # Create a data feed
-    data = bt.feeds.PandasData(dataname=yf.download('BTC-USD', '2022-01-01', '2023-06-21', interval = "60m"))
+    data = bt.feeds.PandasData(dataname=yf.download('BTC-USD', '2023-05-01', '2023-06-21', interval = "60m"))
 
     # Add the Data Feed to Cerebro
     cerebro.adddata(data)
@@ -30,7 +31,7 @@ if __name__ == '__main__':
     cerebro.broker.setcash(100000.0)
 
     # Add a FixedSize sizer according to the stake
-    cerebro.addsizer(bt.sizers.PercentSizer, percents=50)
+    cerebro.addsizer(bt.sizers.PercentSizer, percents=50) # DEIXAR MENOS DE 100% PARA NÃO DAR PAU
 
     # Set the commission
     cerebro.broker.setcommission(commission=0.0)
@@ -66,13 +67,12 @@ if __name__ == '__main__':
     newIndex = ['Periodo RSI','Periodo BB', 'Stop Loss', 'Drawdown %', 'Sharpe Ratio', 'Retorno', 'SQN', 'Profit Factor', 'Total Trades', 'Taxa de acerto']
     df = df.rename(index=lambda x: newIndex[x])
     print(df)
+    # print(strat[0].analyzers.trades.get_analysis()) 
     
-    
-    #cerebro.addwriter(bt.WriterFile, csv=True, out='Testse.csv')
     cerebro.addobserver(bt.observers.DrawDown)
     
     # Plot cerebro
-    fig = cerebro.plot()[0][0] # start=50, end=115 Posso colocar indices para olhar alguma data específica
+    fig = cerebro.plot(start=0, end=500)[0][0] # start=50, end=115 Posso colocar indices para olhar alguma data específica
 
     # Set the desired figure size in inches
     width = 10

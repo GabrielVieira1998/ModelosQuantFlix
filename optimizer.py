@@ -22,8 +22,8 @@ class cTrendsStrategy(bt.Strategy):
         self.dataclose = self.datas[0].close
         # To keep track of pending orders and buy price/commission
         self.order = None
-        self.buyprice = None
-        self.buycomm = None
+        self.buyPrice = None
+        self.buyComm = None
         self.orderStop = None
 
         self.bb = bt.indicators.BollingerBands(self.datas[0], period=self.params.periodBB)
@@ -34,12 +34,12 @@ class cTrendsStrategy(bt.Strategy):
             # Buy/Sell order submitted/accepted to/by broker - Nothing to do
             return
         
-        self.exit_type = ''
+        self.exitType = ''
         # Check if an order has been completed
         # Attention: broker could reject order if not enough cash
         # if order.status in [order.Completed]:
         #     if order.isbuy():
-        #         self.buycomm = order.executed.comm
+        #         self.buyComm = order.executed.comm
         #     # else:  # Sell
         #     self.bar_executed = len(self)
         # Write down: no pending order
@@ -50,17 +50,17 @@ class cTrendsStrategy(bt.Strategy):
             return
 
         # self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' %
-        #          (trade.pnl, trade.pnlcomm))
+        #          (trade.pnl, trade.pnlComm))
         
         pnl = trade.pnl
-        pnlcomm = trade.pnlcomm
+        pnlComm = trade.pnlComm
         # Self.Close seria nosso take profit, pois ele só zera na inversão do indicador. 
-        if self.exit_type == '':
-            self.exit_type = 'StopLoss' if pnl < 0 else 'SelfClose'
+        if self.exitType == '':
+            self.exitType = 'StopLoss' if pnl < 0 else 'SelfClose'
 
-        #self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' % (pnl, pnlcomm))
+        #self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' % (pnl, pnlComm))
         
-        if self.exit_type == 'SelfClose':
+        if self.exitType == 'SelfClose':
             self.broker.cancel(self.orderStop)
 
 

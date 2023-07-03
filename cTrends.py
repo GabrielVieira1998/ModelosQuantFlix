@@ -25,13 +25,13 @@ class cTrendsStrategyTest(bt.Strategy):
         # To keep track of pending orders and buy price/commission
         self.order = None
         self.orderStop = None
-        self.buyprice = None
-        self.sellprice = None
-        self.buycomm = None
+        self.buyPrice = None
+        self.sellPrice = None
+        self.buyComm = None
 
-        self.csv_file = open('backtest_history.csv', 'w', newline='')
-        self.csv_writer = csv.writer(self.csv_file)
-        self.csv_writer.writerow(['Date', 'Price', 'Direction', 'Type', 'Pnl', 'Size', 'EntryPrice', 'ExitType', 'IRF', 'BB top', 'BB bot'])
+        self.csvFile = open('backtest_history.csv', 'w', newline='')
+        self.csvWriter = csv.writer(self.csvFile)
+        self.csvWriter.writerow(['Date', 'Price', 'Direction', 'Type', 'Pnl', 'Size', 'EntryPrice', 'ExitType', 'IRF', 'BB top', 'BB bot'])
 
         # Add a BB and RSI indicator
         self.bb = bt.indicators.BollingerBands(self.datas[0], period=self.params.periodBB)
@@ -50,17 +50,17 @@ class cTrendsStrategyTest(bt.Strategy):
                           order.executed.comm,
                           self.rsi[0],
                           self.bb.bot[0]))
-                self.buyprice = order.executed.price
-                self.buycomm = order.executed.comm
-                self.entry_price = order.executed.price
-                self.exit_type = ''
+                self.buyPrice = order.executed.price
+                self.buyComm = order.executed.comm
+                self.entryPrice = order.executed.price
+                self.exitType = ''
 
-                if self.sellprice is None or order.executed.price < self.sellprice:
-                    entry_exit_type = 'Entry'
+                if self.sellPrice is None or order.executed.price < self.sellPrice:
+                    entry_exitType = 'Entry'
                 else:
-                    entry_exit_type = 'Exit'
+                    entry_exitType = 'Exit'
 
-                self.csv_writer.writerow([self.datas[0].datetime.datetime(0), order.executed.price, 'In', 'Buy',
+                self.csvWriter.writerow([self.datas[0].datetime.datetime(0), order.executed.price, 'In', 'Buy',
                                           0, order.executed.size, '', '', self.rsi[0], self.bb.top[0], self.bb.bot[0]])
 
             else:  # Sell
@@ -71,17 +71,17 @@ class cTrendsStrategyTest(bt.Strategy):
                           self.rsi[0],
                           self.bb.top[0]))
 
-                self.sellprice = order.executed.price
-                self.buycomm = order.executed.comm
-                self.entry_price = order.executed.price
-                self.exit_type = ''
+                self.sellPrice = order.executed.price
+                self.buyComm = order.executed.comm
+                self.entryPrice = order.executed.price
+                self.exitType = ''
 
-                if self.buyprice is None or order.executed.price > self.buyprice:
-                    entry_exit_type = 'Entry'
+                if self.buyPrice is None or order.executed.price > self.buyPrice:
+                    entry_exitType = 'Entry'
                 else:
-                    entry_exit_type = 'Exit'
+                    entry_exitType = 'Exit'
 
-                self.csv_writer.writerow([self.datas[0].datetime.datetime(0), order.executed.price, 'In', 'Sell',
+                self.csvWriter.writerow([self.datas[0].datetime.datetime(0), order.executed.price, 'In', 'Sell',
                                       0, order.executed.size, '', '', self.rsi[0], self.bb.top[0], self.bb.bot[0]])
 
 
@@ -100,23 +100,23 @@ class cTrendsStrategyTest(bt.Strategy):
         pnl = trade.pnl
         pnlcomm = trade.pnlcomm
         # Self.Close seria nosso take profit, pois ele só zera na inversão do indicador. 
-        if self.exit_type == '':
-            self.exit_type = 'StopLoss' if pnl < 0 else 'SelfClose'
+        if self.exitType == '':
+            self.exitType = 'StopLoss' if pnl < 0 else 'SelfClose'
 
         self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' % (pnl, pnlcomm))
         
-        if self.exit_type == 'SelfClose':
+        if self.exitType == 'SelfClose':
             self.broker.cancel(self.orderStop)
 
-        self.csv_writer.writerow([
+        self.csvWriter.writerow([
             self.datas[0].datetime.datetime(0),  # Date
-            self.sellprice if pnl < 0 else self.buyprice,  # Price
+            self.sellPrice if pnl < 0 else self.buyPrice,  # Price
             'Out',  # Direction
             'Sell' if pnl < 0 else 'Buy',  # Type
             pnl,  # pnl
             trade.size,  # Size
-            self.entry_price,  # EntryPrice
-            self.exit_type,  # ExitType
+            self.entryPrice,  # EntryPrice
+            self.exitType,  # ExitType
             self.rsi[0], 
             self.bb.top[0],
             self.bb.bot[0]
@@ -151,4 +151,4 @@ class cTrendsStrategyTest(bt.Strategy):
 
     def stop(self):
         # Close the CSV file after the backtest is complete
-        self.csv_file.close()
+        self.csvFile.close()

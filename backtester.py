@@ -11,7 +11,7 @@ import backtrader as bt
 import pandas as pd
 # Importando classe da estratégia cTrends
 from cTrends import cTrendsStrategy
-from Teeste import cTrendsStrategyTest
+
 # my_strategy = cTrendsStrategy()
 
 
@@ -20,7 +20,7 @@ if __name__ == '__main__':
     # Create a cerebro entity
     cerebro = bt.Cerebro() # writer=True # stdstats=False
     # Add a strategy
-    cerebro.addstrategy(cTrendsStrategyTest)
+    cerebro.addstrategy(cTrendsStrategy)
     # Create a data feed
     data = bt.feeds.PandasData(dataname=yf.download('BTC-USD', '2023-05-01', '2023-06-21', interval = "60m"))
 

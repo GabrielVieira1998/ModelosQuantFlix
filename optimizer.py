@@ -6,6 +6,26 @@ import yfinance as yf
 import backtrader as bt
 import backtrader.analyzers as btanalyzers
 import pandas as pd
+import argparse
+
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description='Pandas test script')
+
+    parser.add_argument('--dataname', default='', required=False,
+                        help='File Data to Load')
+
+    parser.add_argument('--timeframe', default='daily', required=False,
+                        choices=['daily', 'weekly', 'monhtly'],
+                        help='Timeframe to resample to')
+
+    parser.add_argument('--compression', default=2, required=False, type=int,
+                        help='Compress n bars into 1')
+    
+
+    return parser.parse_args()
 
 # Create a Stratey
 class cTrendsStrategy(bt.Strategy):
@@ -49,16 +69,11 @@ class cTrendsStrategy(bt.Strategy):
         if not trade.isclosed:
             return
 
-        # self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' %
-        #          (trade.pnl, trade.pnlComm))
-        
         pnl = trade.pnl
-        pnlComm = trade.pnlComm
+        
         # Self.Close seria nosso take profit, pois ele só zera na inversão do indicador. 
         if self.exitType == '':
             self.exitType = 'StopLoss' if pnl < 0 else 'SelfClose'
-
-        #self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' % (pnl, pnlComm))
         
         if self.exitType == 'SelfClose':
             self.broker.cancel(self.orderStop)
@@ -86,36 +101,45 @@ class cTrendsStrategy(bt.Strategy):
                 # Keep track of the created order to avoid a 2nd order
                 self.order = self.buy()
                 self.orderStop = self.sell(price=self.data.close[0] * (1 - (self.params.stopLoss*0.01)), exectype=bt.Order.Stop)
-                # stopPrice = self.data.close[0] * (1 - self.params.stopLoss*0.01)
-                # takeProfitPrice = self.data.close[0] * (1 + self.params.stopLoss*0.01)
-                # self.order = self.buy(exectype=bt.Order.Stop, price=self.data.close[0], stopprice=stopPrice)#, limitprice=take_profit_price) 
 
             elif (self.rsi[0] >= 70) and (self.dataclose[0] >= self.bb.top[0]): 
                 # SELL, SELL, SELL!!! (with all possible default parameters)
                 # Keep track of the created order to avoid a 2nd order
                 self.order = self.sell()
                 self.orderStop = self.buy(price=self.data.close[0] * (1 + (self.params.stopLoss*0.01)), exectype=bt.Order.Stop)
-                # stopPrice = self.data.close[0] * (1 + self.params.stopLoss*0.01)
-                # takeProfitPrice = self.data.close[0] * (1 - self.params.stopLoss*0.01)   
-                # self.order = self.sell(exectype=bt.Order.Stop, price=self.data.close[0], stopprice=stopPrice)#, limitprice=take_profit_price) 
+  
+                 
 
 if __name__ == '__main__':
+    args = parse_args()
     # Create a cerebro entity
-    cerebro = bt.Cerebro()
+    cerebro = bt.Cerebro(maxcpus=None)
 
     # Add a strategy
-    strats = cerebro.optstrategy(
+    cerebro.optstrategy(
         cTrendsStrategy,
         periodRsi=range(4, 15),
-        periodBB=range(20, 200),
-        stopLoss=range(2,20) 
+        periodBB=range(20, 210, 20),
+        stopLoss=range(2,10)
         )
-
+    
      # Create a data feed
-    data = bt.feeds.PandasData(dataname=yf.download('BTC-USD', '2015-07-01', '2023-06-21', interval = "1d"))
+    data = bt.feeds.PandasData(dataname=yf.download('BTC-USD', '2021-08-21', '2023-06-21', interval = "60m"))
 
     # Add the Data Feed to Cerebro
     cerebro.adddata(data)
+
+    # # Handy dictionary for the argument timeframe conversion
+    # tframes = dict(
+    #     daily=bt.TimeFrame.Days,
+    #     weekly=bt.TimeFrame.Weeks,
+    #     monthly=bt.TimeFrame.Months)
+
+    # # Add the resample data instead of the original
+    # cerebro.resampledata(dataname=data,
+    #                      timeframe=tframes[args.timeframe],
+    #                      compression=args.compression)
+   
 
     # Set our desired cash start
     cerebro.broker.setcash(100000.0)
@@ -133,7 +157,8 @@ if __name__ == '__main__':
     cerebro.broker.setcommission(commission=0.0)
     
     # Variável optimizationResults retorna uma lista de todos os resultados
-    optimizationResults = cerebro.run(maxcpus=4)
+    optimizationResults = cerebro.run()
+
     #print(optimizationResults[0][0].broker.getvalue())
     paramsList = [[
         

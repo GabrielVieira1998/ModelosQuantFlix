@@ -1,15 +1,20 @@
+# Bandwidth = (Upper Bollinger Band® - Lower Bollinger Band®)/Middle Bollinger Band®
+
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 import backtrader as bt
 import csv
-from BollingerBandWidth import BbWidth
-
+from GannHilo import GannHiLoActivator
 
 # Create a Strategy
-class cTrendsStrategy(bt.Strategy):
+class trendsStrategy(bt.Strategy):
     params = (
-        ('periodRsi', 2),
-        ('periodBB', 60),
+        ('atrPeriod', 63),
+        ('atrDist', 3),
+        ('periodMe1', 12), 
+        ('periodMe2', 26), 
+        ('periodSignal', 9),
+        ('periodHilo', 20),
         ('stopLoss', 0.09)
     )
 
@@ -30,15 +35,19 @@ class cTrendsStrategy(bt.Strategy):
         self.sellPrice = None
         self.buyComm = None
 
-        self.csvFile = open('backtest_history.csv', 'w', newline='')
+        self.csvFile = open('backtest_history_trends.csv', 'w', newline='')
         self.csvWriter = csv.writer(self.csvFile)
-        self.csvWriter.writerow(['Date', 'Price', 'Direction', 'Type', 'Pnl', 'Size', 'EntryPrice', 'ExitType', 'RSI', 'BBtop', 'BBbot'])
+        self.csvWriter.writerow(['Date', 'Price', 'Direction', 'Type', 'Pnl', 'Size', 'EntryPrice', 'ExitType'])
 
         # Add a BB and RSI indicator
-        self.bb = bt.indicators.BollingerBands(self.datas[0], period=self.params.periodBB)
-        self.rsi = bt.indicators.RelativeStrengthIndex(self.datas[0], period=self.params.periodRsi)
-        self.bbWidth = BbWidth(period=20)
+        self.atr = bt.indicators.AverageTrueRange(self.datas[0], period=self.params.atrPeriod)
+        self.macd = bt.indicators.MACD(self.datas[0], period_me1=self.params.periodMe1, period_me2=self.params.periodMe2, period_signal=self.params.periodSignal)
+        self.gann_hilo = GannHiLoActivator(period=self.params.periodHilo)
+        # Sinal quando macd cruzar linha de sinal para baixo e para cima
+        # self.crossOver = bt.indicators.CrossOver(self.macd.macd, self.macd.signal)
+        
 
+        
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
             # Buy/Sell order submitted/accepted by broker - Nothing to do
@@ -46,45 +55,43 @@ class cTrendsStrategy(bt.Strategy):
 
         if order.status in [order.Completed]:
             if order.isbuy():
-                self.log('BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f, RSI: %.2f, BB: %.2f' %
+                self.log('BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
                          (order.executed.price,
                           order.executed.value,
-                          order.executed.comm,
-                          self.rsi[0],
-                          self.bb.bot[0]))
+                          order.executed.comm
+                          ))
                 self.buyPrice = order.executed.price
                 self.buyComm = order.executed.comm
                 self.entryPrice = order.executed.price
                 self.exitType = ''
-
+                
                 # if self.sellPrice is None or order.executed.price < self.sellPrice:
                 #     entry_exitType = 'Entry'
                 # else:
                 #     entry_exitType = 'Exit'
 
                 self.csvWriter.writerow([self.datas[0].datetime.datetime(0), order.executed.price, 'In', 'Buy',
-                                          0, order.executed.size, '', '', self.rsi[0], self.bb.top[0], self.bb.bot[0]])
+                                          0, order.executed.size, '', '']) 
 
             else:  # Sell
-                self.log('SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f, RSI: %.2f, BB: %.2f' %
+                self.log('SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
                          (order.executed.price,
                           order.executed.value,
-                          order.executed.comm,
-                          self.rsi[0],
-                          self.bb.top[0]))
+                          order.executed.comm
+                          ))
 
                 self.sellPrice = order.executed.price
                 self.buyComm = order.executed.comm
                 self.entryPrice = order.executed.price
                 self.exitType = ''
-
+                
                 # if self.buyPrice is None or order.executed.price > self.buyPrice:
                 #     entry_exitType = 'Entry'
                 # else:
                 #     entry_exitType = 'Exit'
 
                 self.csvWriter.writerow([self.datas[0].datetime.datetime(0), order.executed.price, 'In', 'Sell',
-                                      0, order.executed.size, '', '', self.rsi[0], self.bb.top[0], self.bb.bot[0]])
+                                      0, order.executed.size, '', '']) # , self.rsi[0]
 
 
             self.bar_executed = len(self)
@@ -101,9 +108,7 @@ class cTrendsStrategy(bt.Strategy):
 
         pnl = trade.pnl
         pnlcomm = trade.pnlcomm
-        print("PNL: ", pnl)
-        print("trade.price: ", trade.price)
-        print("trade.status: ", trade.history)
+
 
         # Self.Close seria nosso take profit, pois ele só zera na inversão do indicador. 
         if self.exitType == '':
@@ -123,46 +128,55 @@ class cTrendsStrategy(bt.Strategy):
             trade.size,  # Size
             self.entryPrice,  # EntryPrice
             self.exitType,  # ExitType
-            self.rsi[0], 
-            self.bb.top[0],
-            self.bb.bot[0]
             
         ])
 
     def next(self):
         if self.order:
             return
-
+        atrValue = self.atr[0]
+        macdValue = self.macd.macd[0]
+        macdSignal = self.macd.signal[0] 
+        priceClose = self.dataclose[0]    
+        priceHilo = self.gann_hilo.hilo[0] 
+        positionSize = self.position.size
+        
         if self.position:
-            if (self.rsi[0] >= 70) and (self.dataclose[0] >= self.bb.top[0]) and (self.position.size > 0):
+              
+            if (macdValue < macdSignal) and (priceClose < priceHilo) and (positionSize > 0):
+
                 self.order = self.close()
 
-            elif (self.rsi[0] <= 30) and (self.dataclose[0] <= self.bb.bot[0]) and (self.position.size < 0):
-                self.order = self.close()
+            elif (macdValue > macdSignal) and (priceClose > priceHilo) and (positionSize < 0):
 
+                self.order = self.close()
+            
+            
         else:
-            if (self.rsi[0] <= 30) and (self.dataclose[0] <= self.bb.bot[0]): # and (self.bbWidth[0] <= 0.20)
-                self.log('BUY CREATE, %.2f' % self.dataclose[0])
-                self.log('STOP LOSS BUY CREATED, %.2f' % (self.dataclose[0] * (1 - self.params.stopLoss)))
-                print("RSI: ", self.rsi[0], "BBtop: ", self.bb.top[0], " BBbot: ", self.bb.bot[0])
-                positionAdjSizeBuy = 50000/self.dataclose[0]
-                 # takeProfitPrice = self.data.close[0] * (1 + self.params.stopLoss*0.01)
+            if (macdValue > macdSignal) and (priceClose > priceHilo):
+                self.log('BUY CREATE, %.2f' % priceClose)
+                # stopPriceBuy =  priceClose * (1 - self.params.stopLoss)
+                stopPriceBuy = priceClose - (atrValue * self.params.atrDist)
+                positionAdjSizeBuy = 50000/priceClose
+                self.log('STOP LOSS BUY CREATED, %.2f' % stopPriceBuy)
                 self.order = self.buy(size=positionAdjSizeBuy)
-                #self.order = self.buy_bracket(limitprice=self.dataclose[0] * (1 + self.params.stopLoss), price=self.dataclose[0], stopprice=self.dataclose[0] * (1 - self.params.stopLoss))
-                # self.orderStop = self.sell(size=positionAdjSizeBuy,price=self.dataclose[0] * (1 - self.params.stopLoss), exectype=bt.Order.Stop)
-
-            elif (self.rsi[0] >= 70) and (self.dataclose[0] >= self.bb.top[0]):
-                self.log('SELL CREATE, %.2f' % self.dataclose[0])
-                self.log('STOP LOSS SELL CREATED, %.2f' % (self.dataclose[0] * (1 + self.params.stopLoss)))
-                print("RSI: ", self.rsi[0], "BBtop: ", self.bb.top[0], " BBbot: ", self.bb.bot[0])
-                positionAdjSizeSell = 50000/self.dataclose[0]
+                # self.orderStop = self.sell(size=positionAdjSizeBuy,price=stopPriceBuy, exectype=bt.Order.Stop)
+                self.order = self.buy_bracket(limitprice=self.dataclose[0] * (1 + self.params.stopLoss), price=self.dataclose[0], stopprice=self.dataclose[0] * (1 - self.params.stopLoss))
+            elif (macdValue < macdSignal) and (priceClose < priceHilo):
+                self.log('SELL CREATE, %.2f' % priceClose)
+                # stopPriceSell = priceClose  * (1 + self.params.stopLoss)
+                positionAdjSizeSell = 50000/priceClose 
+                stopPriceSell = priceClose + (atrValue * self.params.atrDist)
+                self.log('STOP LOSS SELL CREATED, %.2f' % stopPriceSell)  
                 self.order = self.sell(size=positionAdjSizeSell)
-                # self.order = self.sell_bracket(limitprice=self.dataclose[0] * (1 - self.params.stopLoss), price=self.dataclose[0], stopprice=self.dataclose[0] * (1 + self.params.stopLoss))
+                # self.orderStop = self.buy(size=positionAdjSizeSell,price=stopPriceSell, exectype=bt.Order.Stop)
+                self.order = self.sell_bracket(limitprice=self.dataclose[0] * (1 - self.params.stopLoss), price=self.dataclose[0], stopprice=self.dataclose[0] * (1 + self.params.stopLoss))
 
-                # self.orderStop = self.buy(size=positionAdjSizeSell,price=self.dataclose[0] * (1 + self.params.stopLoss), exectype=bt.Order.Stop)
+          
 
         
 
     def stop(self):
         # Close the CSV file after the backtest is complete
         self.csvFile.close()
+        

@@ -28,3 +28,4 @@ class GannHiLoActivator(bt.Indicator):
             self.plotlines.hilo.color = 'red'
         else:
             self.lines.hilo[0] = self.lines.hilo[-1]  # Preserve previous hilo value
+# Teste

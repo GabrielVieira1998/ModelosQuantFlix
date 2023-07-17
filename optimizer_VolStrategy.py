@@ -7,7 +7,7 @@ import backtrader as bt
 import backtrader.analyzers as btanalyzers
 import pandas as pd
 import argparse
-
+import json
 
 
 def parse_args():
@@ -34,9 +34,14 @@ from BollingerBandWidth import BbWidth
 class volStrategy(bt.Strategy):
     params = (
         ('periodBB', 200),
-        ('nQuartile', 100),
+        ('tradeReversion', 0), # 0 false, 1 true
+        ('tradeTrend', 1), # 0 false, 1 true        
+        ('nQuartile', 5),
         ('firstLineQuartile', 0),
         ('secondLineQuartile', 3),
+        ('stopLoss', 0.03),
+        ('multiplicador', 2)
+        
     )
 
     def log(self, txt, dt=None):
@@ -64,7 +69,7 @@ class volStrategy(bt.Strategy):
         self.bb = bt.indicators.BollingerBands(self.datas[0], period=self.params.periodBB)
         
         self.bbWidth = BbWidth(period=self.params.periodBB, n=self.params.nQuartile, firstLineQuartile=self.params.firstLineQuartile, secondLineQuartile=self.params.secondLineQuartile)
-
+        
        
 
     
@@ -128,33 +133,13 @@ class volStrategy(bt.Strategy):
 
         pnl = trade.pnl
         pnlcomm = trade.pnlcomm
-        # print("PNL: ", pnl)
-        # print("trade.price: ", trade.price)
-        # print("trade.status: ", trade.history)
 
         # Self.Close seria nosso take profit, pois ele só zera na inversão do indicador. 
         if self.exitType == '':
             self.exitType = 'StopLoss' if pnl < 0 else 'SelfClose'
 
-        #self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' % (pnl, pnlcomm))
-        
-        # if self.exitType == 'SelfClose':
-        #     self.broker.cancel(self.orderStop)
-
-        # self.csvWriter.writerow([
-        #     self.datas[0].datetime.datetime(0),  # Date
-        #     self.sellPrice if pnl < 0 else self.buyPrice,  # Price
-        #     'Out',  # Direction
-        #     'Sell' if pnl < 0 else 'Buy',  # Type
-        #     pnl,  # pnl
-        #     trade.size,  # Size
-        #     self.entryPrice,  # EntryPrice
-        #     self.exitType,  # ExitType
-        #     self.bb.top[0],
-        #     self.bb.bot[0]
-            
-        # ])
-
+        if self.exitType == 'SelfClose':
+            self.broker.cancel(self.orderStop)
 
     
     def signalType(self):
@@ -171,28 +156,28 @@ class volStrategy(bt.Strategy):
 
         signal = self.signalType()
         
-        if signal == "Trend Follow":
+        if (signal == "Trend Follow") and (self.params.tradeTrend == 1):
             # Quando sinal igual a trend follow eu já sei que estou entre as first e second line, portanto basta checar bbwidth com a second line das últimas barras.
             if self.position:
                 
-                if(self.bbWidth[-2] >= self.bbWidth.second[-2]):
+                if(self.bbWidth[0] <= self.bbWidth.first[0]):
                     #print("Zerou tendência")
                     self.order = self.close()
                 
             else:
                 if (self.dataclose[0] >= self.bb.top[0]): # and (self.bbWidth[0] >= self.bbWidth.second[0]):  
                         # print("comprou tendência")                  
-                        positionAdjSizeBuy = 50000/self.dataclose[0]
+                        positionAdjSizeBuy = 100000/self.dataclose[0]
                         self.order = self.buy(size=positionAdjSizeBuy)
-                        # self.orderStop = self.sell(size=positionAdjSizeBuy, price=self.dataclose[0] * (1 - self.params.stopLoss), exectype=bt.Order.Stop)
+                        self.orderStop = self.sell(size=positionAdjSizeBuy, price=self.dataclose[0] * (1 - (self.params.stopLoss*self.params.multiplicador)), exectype=bt.Order.Stop)
 
                 elif (self.dataclose[0] <= self.bb.bot[0]):# and (self.bbWidth[0] >= self.bbWidth.second[0]):
                         # print("vendeu tendência")
-                        positionAdjSizeSell = 50000/self.dataclose[0]
+                        positionAdjSizeSell = 100000/self.dataclose[0]
                         self.order = self.sell(size=positionAdjSizeSell)
-                        # self.orderStop = self.buy(size=positionAdjSizeSell, price=self.dataclose[0] * (1 + self.params.stopLoss), exectype=bt.Order.Stop)     
+                        self.orderStop = self.buy(size=positionAdjSizeSell, price=self.dataclose[0] * (1 + (self.params.stopLoss*self.params.multiplicador)), exectype=bt.Order.Stop)     
             
-        elif signal == "Reversion":
+        elif (signal == "Reversion") and (self.params.tradeReversion == 1):
             # Lembrar que no caso do código que realiza as entradas, zero tanto na banda superior e inferior quanto na inversão do sinal. 
             # Já na logica do trend following, só zero na inversão do sinal. 
             if self.position:
@@ -208,24 +193,17 @@ class volStrategy(bt.Strategy):
             else:
                 if (self.dataclose[0] <= self.bb.bot[0]): # and (self.bbWidth[0] <= 0.20)
                     # print("Comprou reversão")
-                    positionAdjSizeBuyReversion = 50000/self.dataclose[0]
+                    positionAdjSizeBuyReversion = 100000/self.dataclose[0]
                     self.order = self.buy(size=positionAdjSizeBuyReversion)
-                    # self.orderStop = self.sell(size=positionAdjSizeBuyReversion,price=self.dataclose[0] * (1 - self.params.stopLoss), exectype=bt.Order.Stop)
+                    self.orderStop = self.sell(size=positionAdjSizeBuyReversion,price=self.dataclose[0] * (1 - (self.params.stopLoss*self.params.multiplicador)), exectype=bt.Order.Stop)
 
                 elif (self.dataclose[0] >= self.bb.top[0]):
                     # print("Vendeu reversão")
-                    positionAdjSizeSellReversion = 50000/self.dataclose[0]
+                    positionAdjSizeSellReversion = 100000/self.dataclose[0]
                     self.order = self.sell(size=positionAdjSizeSellReversion)
-                    # self.orderStop = self.buy(size=positionAdjSizeSellReversion,price=self.dataclose[0] * (1 + self.params.stopLoss), exectype=bt.Order.Stop)
+                    self.orderStop = self.buy(size=positionAdjSizeSellReversion,price=self.dataclose[0] * (1 + (self.params.stopLoss*self.params.multiplicador)), exectype=bt.Order.Stop)
 
-            
-            # print("Len Data Close: ", len(self.dataclose))
-            # print("Len Data: ", self.dataclose.buflen())
-            
-            # if(len(self.dataclose) == self.dataclose.buflen()):
-            #     self.order = self.order_target_size(target=0)       
-
-    
+  
                  
 
 if __name__ == '__main__':
@@ -233,37 +211,27 @@ if __name__ == '__main__':
     # Create a cerebro entity
     cerebro = bt.Cerebro(maxcpus=None)
 
+
     # Add a strategy
     cerebro.optstrategy(
         volStrategy,
-        # nQuartile=range(5, 10),
-        firstLineQuartile=range(0, 9),
-        secondLineQuartile=range(9,19)
+        nQuartile=range(5, 13),
+        #tradeReversion=range(0,2),
+        # tradeTrend=range(0,2),
+        # firstLineQuartile=range(0,11),
+        secondLineQuartile=range(2,12)
         )
     
      # Create a data feed
-    data = bt.feeds.PandasData(dataname=yf.download('BTC-USD', '2021-07-15', '2023-07-04', interval = "60m"))
+    data = bt.feeds.PandasData(dataname=yf.download('BTC-USD', '2021-07-19', '2023-07-04', interval = "60m"))
 
     # Add the Data Feed to Cerebro
     cerebro.adddata(data)
-
-    # # Handy dictionary for the argument timeframe conversion
-    # tframes = dict(
-    #     daily=bt.TimeFrame.Days,
-    #     weekly=bt.TimeFrame.Weeks,
-    #     monthly=bt.TimeFrame.Months)
-
-    # # Add the resample data instead of the original
-    # cerebro.resampledata(dataname=data,
-    #                      timeframe=tframes[args.timeframe],
-    #                      compression=args.compression)
-   
 
     # Set our desired cash start
     cerebro.broker.setcash(100000.0)
     
     # Add a FixedSize sizer according to the stake
-    # cerebro.addsizer(bt.sizers.PercentSizer, percents=50)
     # Adiciono na classe analyzer os indicadores de resultado que quero buscar
 
     cerebro.addanalyzer(btanalyzers.DrawDown, _name='dd')
@@ -275,25 +243,60 @@ if __name__ == '__main__':
     cerebro.broker.setcommission(commission=0.0)
     
     # Variável optimizationResults retorna uma lista de todos os resultados
+
     optimizationResults = cerebro.run()
-
-    #print(optimizationResults[0][0].broker.getvalue())
-    paramsList = [[
-        
-      x[0].params.nQuartile,
-      x[0].params.firstLineQuartile,
-      x[0].params.secondLineQuartile,
-      x[0].analyzers.dd.get_analysis()['max']['drawdown'],
-      x[0].analyzers.sharpe.get_analysis()['sharperatio'],
-      x[0].analyzers.trades.get_analysis()['pnl']['net']['total'],   
-      x[0].analyzers.returns.get_analysis()['rtot'],
-      x[0].analyzers.sqn.get_analysis()['sqn'], # Indicador SQN do matemático Tharp
-      abs(x[0].analyzers.trades.get_analysis()['won']['pnl']['total']/x[0].analyzers.trades.get_analysis()['lost']['pnl']['total']), # Profit Factor
-      x[0].analyzers.trades.get_analysis()['total']['closed'], # Número total de trades
-      x[0].analyzers.trades.get_analysis()['won']['total']/x[0].analyzers.trades.get_analysis()['total']['closed'] # Taxa de acerto
-
-    ]for x in optimizationResults]
     
-    paramsDf = pd.DataFrame(paramsList, columns=['nQuartile','firstLineQuartile', 'secondLineQuartile', 'Drawdown %', 'Sharpe Ratio', 'NetValue', 'SQN', 'Profit Factor', 'Total Trades', 'Taxa de acerto'])
-    # 
-    paramsDf.to_csv('/home/gabrielvieira/flix/backtest-bots/results.csv', index=False)
+    ###
+
+    IndicatorsJson = []
+    
+    # Faço um for dentro de toda a lista de resultados da otimização e dou um append na lista que uso para criar o json
+    for x in optimizationResults:
+
+        if (x[0].params.tradeReversion > 0 or x[0].params.tradeTrend > 0) and (x[0].params.firstLineQuartile < x[0].params.secondLineQuartile):
+
+            IndicatorsJson.append({
+                'nQuartile': x[0].params.nQuartile,
+                'firsQuartile': x[0].params.firstLineQuartile,
+                'secondQuartile':x[0].params.secondLineQuartile,
+                'Opera reversao': x[0].params.tradeReversion,
+                'Opera tendencia': x[0].params.tradeTrend,
+                'Drawdown %': x[0].analyzers.dd.get_analysis()['max']['drawdown'],
+                'Sharpe Ratio': x[0].analyzers.sharpe.get_analysis()['sharperatio'],
+                'Net Profit': x[0].analyzers.trades.get_analysis()['pnl']['net']['total'],
+                'SQN': x[0].analyzers.sqn.get_analysis()['sqn'],
+                'Profit Factor': abs(x[0].analyzers.trades.get_analysis()['won']['pnl']['total']/x[0].analyzers.trades.get_analysis()['lost']['pnl']['total']),
+                'Total Trades': x[0].analyzers.trades.get_analysis()['total']['closed'],
+                'Taxa de acerto': x[0].analyzers.trades.get_analysis()['won']['total']/x[0].analyzers.trades.get_analysis()['total']['closed']
+            }) 
+    
+    # Aqui crio o json
+    with open('optimization_params.json', 'w') as jsonFile:
+        json.dump(IndicatorsJson, jsonFile)
+    
+        
+    
+    # paramsList = [[
+                
+    #     x[0].params.nQuartile,
+    #     x[0].params.firstLineQuartile,
+    #     x[0].params.secondLineQuartile,
+    #     x[0].params.tradeReversion,
+    #     x[0].params.tradeTrend,
+    #     x[0].analyzers.dd.get_analysis()['max']['drawdown'],
+    #     x[0].analyzers.sharpe.get_analysis()['sharperatio'],
+    #     x[0].analyzers.trades.get_analysis()['pnl']['net']['total'],
+    #     x[0].analyzers.sqn.get_analysis()['sqn'], # Indicador SQN do matemático Tharp
+    #     abs(x[0].analyzers.trades.get_analysis()['won']['pnl']['total']/x[0].analyzers.trades.get_analysis()['lost']['pnl']['total']), # Profit Factor
+    #     x[0].analyzers.trades.get_analysis()['total']['closed'], # Número total de trades
+    #     x[0].analyzers.trades.get_analysis()['won']['total']/x[0].analyzers.trades.get_analysis()['total']['closed'] # Taxa de acerto
+
+    # ]for x in optimizationResults if (x[0].params.tradeReversion > 0 or x[0].params.tradeTrend > 0) and (x[0].params.firstLineQuartile < x[0].params.secondLineQuartile)]
+
+   
+    # paramsDf = pd.DataFrame(paramsList, columns=['nQuartile','firstLineQuartile','secondLineQuartile','Opera Reversão','Opera Tendência','Drawdown %', 'Sharpe Ratio','Net Profit', 'SQN', 'Profit Factor', 'Total Trades', 'Taxa de acerto'])
+    #         # 
+    # paramsDf.to_csv('/home/gabrielvieira/flix/backtest-bots/results.csv', index=False)
+    
+    
+

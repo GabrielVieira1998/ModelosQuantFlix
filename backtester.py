@@ -1,6 +1,6 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
-
+import datetime
 import yfinance as yf
 import matplotlib
 matplotlib.use('Agg')
@@ -14,28 +14,8 @@ from cTrends import cTrendsStrategy
 from Trends import trendsStrategy
 from Vol import volStrategy
 import argparse
-
-# my_strategy = cTrendsStrategy()
-
-# def get_timeframe(data, desired):
-#     print(data)
-#     data = data.to_dict(orient="tight")
-#     new_data = pd.DataFrame()
-#     for i in range(0,len(data['index']),desired):
-#         if i == len(data['index'])-1:
-#             continue
-#         datetime = data['index'][i]
-#         close = data['data'][i+(desired-1)][3]
-#         open = data['data'][i][0]
-#         high = max(data['data'][i+(desired-1)][1], data['data'][i][1])
-#         low = min(data['data'][i+(desired-1)][2], data['data'][i][2])
-#         adj_close = data['data'][i+(desired-1)][4]
-#         volume = data['data'][i+(desired-1)][5] + data['data'][i][5]
-#         append_data = pd.DataFrame([[open, high, low, close, adj_close, volume]], index=[datetime], columns=['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume'])
-#         append_data.index.name = 'Date'
-#         new_data = pd.concat([new_data, append_data])
-#     print(new_data)
-#     return new_data
+import json
+import uuid
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -54,24 +34,25 @@ def parse_args():
 
     return parser.parse_args()
 
-if __name__ == '__main__':
+def backtester(params, data):
     
     args = parse_args()
     # Create a cerebro entity
-    cerebro = bt.Cerebro(writer=True) # writer=True # stdstats=Falsewriter=False, stdstats=True
+    cerebro = bt.Cerebro(stdstats=True) # writer=True # stdstats=Falsewriter=False, stdstats=True
     #
     cerebro.addobserver(bt.observers.Value)
+    
+    cerebro.addobserver(bt.observers.LogReturns, timeframe=bt.TimeFrame.Days, compression=1)
     # Add a strategy
-    cerebro.addstrategy(volStrategy)
+    
+    cerebro.addstrategy(volStrategy, **params)
     # Create a data feed
     # yf_data = get_timeframe(dataname=yf.download('BTC-USD', '2023-01-01', '2023-06-21', interval = "1d"), 2)
-    data = bt.feeds.PandasData(dataname=yf.download('BTC-USD', '2022-11-05', '2023-07-04', interval = "60m"))
+    # data = bt.feeds.GenericCSVData(dataname='BTC_Hourly.csv',fromdate=datetime.datetime(2020, 1, 1),todate=datetime.datetime(2022, 1, 1),datetime=1,open=3,high=4,low=5,close=6,volume=7,openinterest=8)
+
     
     # Add the Data Feed to Cerebro
     cerebro.adddata(data)
-
-    
-
     # ##Handy dictionary for the argument timeframe conversion
     # tframes = dict(
     #     daily=bt.TimeFrame.Days,
@@ -82,21 +63,12 @@ if __name__ == '__main__':
     # cerebro.resampledata(dataname=data,
     #                      timeframe=tframes[args.timeframe],
     #                      compression=args.compression)
-   
-    
-
-
     # Set our desired cash start
-    cerebro.broker.setcash(100000.0)
-
-    # Add a FixedSize sizer according to the stake
-    # cerebro.addsizer(bt.sizers.PercentSizer, percents=30)# PercentSizer # DEIXAR MENOS DE 100% PARA NÃO DAR PAU
-    #
+    cerebro.broker.setcash(100000.0) # Tenho que aumentar capital nos robôs que dão prejuízo
     # Set the commission
     cerebro.broker.setcommission(commission=0.0)
 
     # Print out the starting conditions
-    print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
     initialDeposit = cerebro.broker.getvalue()
 
     # Adiciono na classe analyzer os indicadores de resultado do backtest
@@ -108,18 +80,15 @@ if __name__ == '__main__':
     
     # Run over everything
     strat = cerebro.run()
-    # print(strat[0].analyzers.trades.get_analysis())
-    # # print(strat[0].analyzers.sqn.get_analysis())
-    # # Declaração de variáveis para df com indicadores do backtest 
-    # # periodRsi = strat[0].params.periodRsi
-    # # periodBB  = strat[0].params.periodBB
-    # # stopLoss  = strat[0].params.stopLoss
-    # print("Initial Deposit: ", initialDeposit)
+    backtestResults = []
+
+    # Declaração de variáveis para df com indicadores do backtest 
+    
     # netProfit = strat[0].analyzers.trades.get_analysis()['pnl']['net']['total']   
     # maxDrawDown = strat[0].analyzers.dd.get_analysis()['max']['drawdown']
     # moneyDrawdown = strat[0].analyzers.dd.get_analysis()['max']['moneydown']
     # sharpeRatio = strat[0].analyzers.sharpe.get_analysis()['sharperatio']
-    # totalReturn = strat[0].analyzers.returns.get_analysis()['rtot']
+    # totalReturn = (netProfit/initialDeposit)
     # sqn =  strat[0].analyzers.sqn.get_analysis()['sqn'] # Indicador SQN do matemático Tharp (Fórmula: SquareRoot(NumberTrades) * Average(TradesProfit) / StdDev(TradesProfit))
     # profitFactor = abs(strat[0].analyzers.trades.get_analysis()['won']['pnl']['total']/strat[0].analyzers.trades.get_analysis()['lost']['pnl']['total']) # Profit Factor
     # totalTrades  =  strat[0].analyzers.trades.get_analysis()['total']['closed'] # Número total de trades
@@ -133,35 +102,37 @@ if __name__ == '__main__':
     # averageProfitTrade = strat[0].analyzers.trades.get_analysis()['won']['pnl']['average']    
     # averageLossTrade = strat[0].analyzers.trades.get_analysis()['lost']['pnl']['average']
 
-
+    return strat[0]
+    
+    # userId = str(uuid.uuid4())
+    
+    # json_path = '/home/gabrielvieira/flix/backtest-bots/backtestResults/volStrategy/'+userId+'_'+'backtest_metrics.json'
+    # fig_path = '/home/gabrielvieira/flix/backtest-bots/backtestResults/volStrategy/'+userId+'_'+'plot.png'
     # # Lista dos resultados do backtest
-    # # paramsList = [periodRsi, periodBB, stopLoss, maxDrawDown, sharpeRatio, totalReturn, sqn, profitFactor, totalTrades, winPercentage]
-    # # paramsList = [periodBB, stopLoss, maxDrawDown, sharpeRatio, totalReturn, sqn, profitFactor, totalTrades, winPercentage]
-    # paramsList = [initialDeposit,netProfit, maxDrawDown, moneyDrawdown, sharpeRatio, totalReturn, sqn, profitFactor, totalTrades, winPercentage, largestProfitTrade, largestLossTrade, averageProfitTrade, averageLossTrade,totalLongTrades, longTradeWinPercentage, totalShortTrades, shortTradeWinPercentage]
-    
-    
-    # df = pd.DataFrame(paramsList, columns=['Resultado'])
-    # # newIndex = ['Periodo RSI','Periodo BB', 'Stop Loss', 'Drawdown %', 'Sharpe Ratio', 'Retorno', 'SQN', 'Profit Factor', 'Total Trades', 'Taxa de acerto']
-    # # newIndex = ['Periodo BB', 'Stop Loss', 'Drawdown %', 'Sharpe Ratio', 'Retorno', 'SQN', 'Profit Factor', 'Total Trades', 'Taxa de acerto']
-    # newIndex = ['Initial Deposit', 'Net Profit', 'Drawdown %', 'Drawdown $', 'Sharpe Ratio', 'Retorno', 'SQN', 'Profit Factor', 'Total Trades','Taxa de acerto', 'Maior lucro','Maior perda','Lucro médio','Perda média','Total Long Trades', 'Taxa de acerto compra', 'Total Short Trades', 'Taxa de acerto venda']
-    
-    # df = df.rename(index=lambda x: newIndex[x])
-    # print(df)
-    # # Gerando CSV dos resultados
-    # pd.DataFrame.to_csv(df, 'resultado_backtest.csv')
-    # # print(strat[0].analyzers.returns.get_analysis()) 
+    # with open(json_path , 'x') as json_file:
+    #         json.dump(backtestResults, json_file)
 
-    
-    
-    
-    # Plot cerebro
-    fig = cerebro.plot()[0][0] # start=50, end=115 Posso colocar indices para olhar alguma data específica
+    # # Plot cerebro
+    # fig = cerebro.plot()[0][0] # start=50, end=115 Posso colocar indices para olhar alguma data específica
 
-    # Set the desired figure size in inches
-    width = 16
-    height = 9
-    fig.set_size_inches(width, height)
+    # # Set the desired figure size in inches
+    # width = 16
+    # height = 9
+    # fig.set_size_inches(width, height)
 
-    # Save the figure as a PNG file with the specified size
-    fig.savefig('plot.png', dpi=300)  # Adjust the DPI value as needed
+    # # Save the figure as a PNG file with the specified size
+    # fig.savefig(fig_path, dpi=300)  # Adjust the DPI value as needed
+    
+# if __name__ == '__main__':
+#     params = dict( 
+#     periodBB= 200,
+#     tradeReversion= 0,
+#     tradeTrend= 1,        
+#     nQuartile= 6,
+#     firstLineQuartile= 3,
+#     secondLineQuartile= 10,
+#     multiplicador= 6,
+#     stopLoss= 0.01
+#     )
+#     backtester(params)
     

@@ -14,19 +14,20 @@ import os
 # Create a Strategy
 class volStrategy(bt.Strategy):
     params = (
-        ('periodBB', 200),
+        ('periodBB', 27),
         ('tradeReversion', 0), # 0 false, 1 true
         ('tradeTrend', 1), # 0 false, 1 true        
-        ('nQuartile', 8),
-        ('firstLineQuartile', 0),
-        ('secondLineQuartile', 2),
-        ('stopLoss', 0.09)
+        ('nQuartile', 6),
+        ('firstLineQuartile', 3),
+        ('secondLineQuartile', 10),
+        ('multiplicador', 6),
+        ('stopLoss', 0.01)
     )
+
 
     def log(self, txt, dt=None):
         ''' Logging function for this strategy'''
         dt = dt or self.datas[0].datetime.date(0)
-        print('%s, %s' % (dt.isoformat(), txt))
 
     def __init__(self):
         # Keep a reference to the "close" line in the data[0] dataseries
@@ -40,7 +41,6 @@ class volStrategy(bt.Strategy):
         self.sellPrice = None
         self.buyComm = None
         self.executedSize = None
-
         # self.csvFile = open('backtest_history.csv', 'w', newline='')
         # self.csvWriter = csv.writer(self.csvFile)
         # self.csvWriter.writerow(['Date', 'Price', 'Direction', 'Type', 'Pnl', 'Size', 'EntryPrice', 'ExitType', 'BBtop', 'BBbot'])
@@ -90,19 +90,19 @@ class volStrategy(bt.Strategy):
            
             self.bar_executed = len(self)
 
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            self.log('Order Canceled/Margin/Rejected')
+        # elif order.status in [order.Canceled, order.Margin, order.Rejected]:
+        #     self.log('Order Canceled/Margin/Rejected')
 
         # Write down: no pending order
         self.order = None
 
     def notify_trade(self, trade):
-        print(" self.datas[0].datetime.datetime(0): ",  self.datas[0].datetime.datetime(0))
-        print("trade.status: ", trade.status)
-        print("trade.history: ", trade.history)
-        print("trade.justopened: ", trade.justopened)
-        print("isclosed: ", trade.isclosed)
-        print("-----------")
+        # print(" self.datas[0].datetime.datetime(0): ",  self.datas[0].datetime.datetime(0))
+        # print("trade.status: ", trade.status)
+        # print("trade.history: ", trade.history)
+        # print("trade.justopened: ", trade.justopened)
+        # print("isclosed: ", trade.isclosed)
+        # print("-----------")
         if trade.justopened:
             # print("trade.price: ", trade.price)
             # print("trade.size: ", trade.size)
@@ -130,8 +130,8 @@ class volStrategy(bt.Strategy):
 
         #self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' % (pnl, pnlcomm))
         
-        # if self.exitType == 'SelfClose':
-        #     self.broker.cancel(self.orderStop)
+        if self.exitType == 'SelfClose':
+            self.broker.cancel(self.orderStop)
 
         # self.csvWriter.writerow([
         #     self.datas[0].datetime.datetime(0),  # Date
@@ -178,22 +178,22 @@ class volStrategy(bt.Strategy):
             # Quando sinal igual a trend follow eu já sei que estou entre as first e second line, portanto basta checar bbwidth com a second line das últimas barras.
             if self.position:
                 
-                if(self.bbWidth[-1] >= self.bbWidth.second[-1]):
-                    print("Zerou tendência")
+                if(self.bbWidth[-1] >= self.bbWidth.first[-1]):
+                    # print("Zerou tendência")
                     self.order = self.close()
                 
             else:
                 if (self.dataclose[0] >= self.bb.top[0]): # and (self.bbWidth[0] >= self.bbWidth.second[0]):  
-                        print("comprou tendência")                  
+                        # print("comprou tendência")                  
                         positionAdjSizeBuy = 100000/self.dataclose[0]
                         self.order = self.buy(size=positionAdjSizeBuy)
-                        # self.orderStop = self.sell(size=positionAdjSizeBuy, price=self.dataclose[0] * (1 - self.params.stopLoss), exectype=bt.Order.Stop)
+                        self.orderStop = self.sell(size=positionAdjSizeBuy, price=self.dataclose[0] * (1 - (self.params.stopLoss*self.params.multiplicador)), exectype=bt.Order.Stop)
 
                 elif (self.dataclose[0] <= self.bb.bot[0]):# and (self.bbWidth[0] >= self.bbWidth.second[0]):
-                        print("vendeu tendência")
+                        # print("vendeu tendência")
                         positionAdjSizeSell = 100000/self.dataclose[0]
                         self.order = self.sell(size=positionAdjSizeSell)
-                        # self.orderStop = self.buy(size=positionAdjSizeSell, price=self.dataclose[0] * (1 + self.params.stopLoss), exectype=bt.Order.Stop)     
+                        self.orderStop = self.buy(size=positionAdjSizeSell, price=self.dataclose[0] * (1 + (self.params.stopLoss*self.params.multiplicador)), exectype=bt.Order.Stop)     
             
         elif (signal == "Reversion") and (self.params.tradeReversion == 1):
             # Lembrar que no caso do código que realiza as entradas, zero tanto na banda superior e inferior quanto na inversão do sinal. 
@@ -201,45 +201,47 @@ class volStrategy(bt.Strategy):
             if self.position:
 
                 if ((self.dataclose[0] >= self.bb.top[0]) and (self.position.size > 0)):
-                    print("Zerou reversão compra")
+                    # print("Zerou reversão compra")
                     self.order = self.close()
 
                 elif (self.dataclose[0] <= self.bb.bot[0]) and (self.position.size < 0):
-                    print("Zerou reversão venda")
+                    # print("Zerou reversão venda")
                     self.order = self.close()
 
             else:
                 if (self.dataclose[0] <= self.bb.bot[0]): # and (self.bbWidth[0] <= 0.20)
-                    print("Comprou reversão")
+                    # print("Comprou reversão")
                     positionAdjSizeBuyReversion = 100000/self.dataclose[0]
                     self.order = self.buy(size=positionAdjSizeBuyReversion)
-                    # self.orderStop = self.sell(size=positionAdjSizeBuyReversion,price=self.dataclose[0] * (1 - self.params.stopLoss), exectype=bt.Order.Stop)
+                    self.orderStop = self.sell(size=positionAdjSizeBuyReversion,price=self.dataclose[0] * (1 - (self.params.stopLoss*self.params.multiplicador)), exectype=bt.Order.Stop)
 
                 elif (self.dataclose[0] >= self.bb.top[0]):
-                    print("Vendeu reversão")
+                    # print("Vendeu reversão")
                     positionAdjSizeSellReversion = 100000/self.dataclose[0]
                     self.order = self.sell(size=positionAdjSizeSellReversion)
-                    # self.orderStop = self.buy(size=positionAdjSizeSellReversion,price=self.dataclose[0] * (1 + self.params.stopLoss), exectype=bt.Order.Stop)
+                    self.orderStop = self.buy(size=positionAdjSizeSellReversion,price=self.dataclose[0] * (1 + (self.params.stopLoss*self.params.multiplicador)), exectype=bt.Order.Stop)
    
 
-    def stop(self):
-        # Close the CSV file after the backtest is complete
-        # self.csvFile.close()
-        # userId = str(uuid.uuid4())
-        # folder_name = userId
+    # def stop(self):
+    #     # Close the CSV file after the backtest is complete
+    #     # self.csvFile.close()
+    #     # userId = str(uuid.uuid4())
+    #     # folder_name = userId
 
-        # # Specify the path where you want to create the folder
-        # path = '/home/gabrielvieira/flix/backtest-bots/backtestResults/'+folder_name+'/'
+    #     # # Specify the path where you want to create the folder
+    #     # path = '/home/gabrielvieira/flix/backtest-bots/backtestResults/'+folder_name+'/'
 
-        # # Join the path and folder name
-        # folder_path = os.path.join(path, folder_name)
+    #     # # Join the path and folder name
+    #     # folder_path = os.path.join(path, folder_name)
 
-        # # Create the folder
-        # os.makedirs(folder_path)
+    #     # # Create the folder
+    #     # os.makedirs(folder_path)
 
-        # json_path = '/home/gabrielvieira/flix/backtest-bots/backtestResults/'+folder_name+'/'+userId+'_'+'backtest_history_test.json'
+    #     # json_path = '/home/gabrielvieira/flix/backtest-bots/backtestResults/'+folder_name+'/'+userId+'_'+'backtest_history_test.json'
     
-        # Create a JSON file and write the trade history
+    #     # Create a JSON file and write the trade history
 
-        with open('backtest_transaction_history_novaotimziacao.json', 'x') as json_file:
-            json.dump(self.trade_history, json_file)
+    #     with open('backtest_transaction_history_novaotimziacao_19.json', 'x') as json_file:
+    #         json.dump(self.trade_history, json_file)
+
+

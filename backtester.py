@@ -10,13 +10,55 @@ import backtrader.analyzers as btanalyzers
 import backtrader as bt
 import pandas as pd
 # Importando classe da estratégia cTrends
-from cTrends import cTrendsStrategy
-from Trends import trendsStrategy
+# from cTrends import cTrendsStrategy
+# from Trends import trendsStrategy
 from Vol import volStrategy
 import argparse
 import json
 import uuid
+from fpdf import FPDF
+import tempfile
+from decimal import *
+import locale
 
+class UpdatedPDF(FPDF):
+    # def header(self):
+    #     self.set_font('Arial', 'B', 12)
+    #     self.cell(0, 10, 'Backtest Result', 0, 1, 'C')
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 10, 'Page %s' % self.page_no(), 0, 0, 'C')
+
+    def chapter_title(self, title):
+        self.set_font('Arial', 'B', 16)
+        self.cell(0, 20, title, ln=True, align='C')
+
+    def chapter_body(self, table_data):
+        self.set_fill_color(135, 206, 250)
+        self.set_font('Arial', 'B', 10)
+        
+        col1_width = 55
+        col2_width = 135
+        row_height = 6
+        
+        self.cell(col1_width, row_height, 'Parameters', 1, 0, 'C', fill=True)
+        self.cell(col2_width, row_height, 'Value', 1, 1, 'C', fill=True)
+        
+        self.set_font('Arial', '', 10)
+        self.set_fill_color(255)
+        
+        for row in table_data:
+            self.cell(col1_width, row_height, str(row[0]), 1)
+            self.cell(col2_width, row_height, str(row[1]), 1, align='C')
+            self.ln()
+
+    def chapter_image(self, image_path):
+        self.image(image_path, x=10, y=self.get_y() + 5, w=190, h=90)
+
+
+    
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Pandas test script')
@@ -34,7 +76,8 @@ def parse_args():
 
     return parser.parse_args()
 
-def backtester(params, data):
+
+def backtester(params, data, generate_report=False):
     
     args = parse_args()
     # Create a cerebro entity
@@ -68,7 +111,7 @@ def backtester(params, data):
     # Set the commission
     cerebro.broker.setcommission(commission=0.0)
 
-    # Print out the starting conditions
+    # # Print out the starting conditions
     initialDeposit = cerebro.broker.getvalue()
 
     # Adiciono na classe analyzer os indicadores de resultado do backtest
@@ -79,60 +122,90 @@ def backtester(params, data):
     cerebro.addanalyzer(btanalyzers.TradeAnalyzer, _name='trades')  # Add TradeAnalyzer
     
     # Run over everything
-    strat = cerebro.run()
-    backtestResults = []
-
-    # Declaração de variáveis para df com indicadores do backtest 
+    strat = cerebro.run()  
     
-    # netProfit = strat[0].analyzers.trades.get_analysis()['pnl']['net']['total']   
-    # maxDrawDown = strat[0].analyzers.dd.get_analysis()['max']['drawdown']
-    # moneyDrawdown = strat[0].analyzers.dd.get_analysis()['max']['moneydown']
-    # sharpeRatio = strat[0].analyzers.sharpe.get_analysis()['sharperatio']
-    # totalReturn = (netProfit/initialDeposit)
-    # sqn =  strat[0].analyzers.sqn.get_analysis()['sqn'] # Indicador SQN do matemático Tharp (Fórmula: SquareRoot(NumberTrades) * Average(TradesProfit) / StdDev(TradesProfit))
-    # profitFactor = abs(strat[0].analyzers.trades.get_analysis()['won']['pnl']['total']/strat[0].analyzers.trades.get_analysis()['lost']['pnl']['total']) # Profit Factor
-    # totalTrades  =  strat[0].analyzers.trades.get_analysis()['total']['closed'] # Número total de trades
-    # winPercentage = strat[0].analyzers.trades.get_analysis()['won']['total']/strat[0].analyzers.trades.get_analysis()['total']['closed'] # Taxa de acerto
-    # longTradeWinPercentage = strat[0].analyzers.trades.get_analysis()['long']['won']/strat[0].analyzers.trades.get_analysis()['long']['total']
-    # shortTradeWinPercentage = strat[0].analyzers.trades.get_analysis()['short']['won']/strat[0].analyzers.trades.get_analysis()['short']['total']
-    # totalLongTrades = strat[0].analyzers.trades.get_analysis()['long']['total']
-    # totalShortTrades = strat[0].analyzers.trades.get_analysis()['short']['total']
-    # largestProfitTrade = strat[0].analyzers.trades.get_analysis()['won']['pnl']['max']
-    # largestLossTrade = strat[0].analyzers.trades.get_analysis()['lost']['pnl']['max']
-    # averageProfitTrade = strat[0].analyzers.trades.get_analysis()['won']['pnl']['average']    
-    # averageLossTrade = strat[0].analyzers.trades.get_analysis()['lost']['pnl']['average']
+    if generate_report == True:
+        
+        userId = str(uuid.uuid4())
 
+        # json_path = '/home/gabrielvieira/flix/backtest-bots/backtestResults/volStrategy/'+userId+'_'+'backtest_metrics.json'
+        # fig_path = '/home/gabrielvieira/flix/backtest-bots/backtestResults/volStrategy/'+userId+'_'+'plot.png'
+        # # Lista dos resultados do backtest
+        # with open(json_path , 'x') as json_file:
+        #         json.dump(backtestResults, json_file)
+        # Plot cerebro
+        fig = cerebro.plot()[0][0] # start=50, end=115 Posso colocar indices para olhar alguma data específica
+        # Set the desired figure size in inches
+        # width = 16
+        # height = 9
+        # fig.set_size_inches(width, height)
+        # Save the figure as a PNG file with the specified size
+        # fig.savefig(fig_path, dpi=300)  # Adjust the DPI value as needed
+        
+
+
+        analyzers = strat[0].analyzers
+        analysis = analyzers.trades.get_analysis() 
+        params = strat[0].params   
+        locale.setlocale(locale.LC_ALL, 'en_US.utf8') 
+        getcontext().prec = 2
+        
+        table_data = [
+            ('n_quartile', params.nQuartile),
+            ('entry_line_quartile', params.secondLineQuartile),
+            ('exit_line_quartile', params.firstLineQuartile),
+            ('trade_reversion', params.tradeReversion),
+            ('trade_trend', params.tradeTrend),
+            ('period_bb', params.periodBB),
+            ('muliplier', params.multiplicador),
+            ('stop_loss', str(params.stopLoss*100)+'%'),
+            ('initial_deposit', locale.currency(initialDeposit, grouping=True)),
+            ('net_profit', locale.currency(analysis['pnl']['net']['total'], grouping=True)),
+            ('max_drawdown_percentage', round(analyzers.dd.get_analysis()['max']['drawdown'], 2)),
+            ('max_drawdown_currency', locale.currency(analyzers.dd.get_analysis()['max']['moneydown'])),
+            ('sharpe_ratio', round(analyzers.sharpe.get_analysis()['sharperatio'],2)),
+            ('total_return', (str(round(analysis['pnl']['net']['total']/initialDeposit*100,2))+'%')),
+            ('sqn', round(analyzers.sqn.get_analysis()['sqn'],2)),
+            ('profit_factor', round(abs(analysis['won']['pnl']['total']/analysis['lost']['pnl']['total']),2)),
+            ('total_trades', analysis['total']['closed']),
+            ('win_percentage', (str(round(analysis['won']['total']/analysis['total']['closed']*100,2))+'%')),
+            ('lergest_profit_trade', locale.currency(analysis['won']['pnl']['max'])),
+            ('largest_loss_trade', locale.currency(analysis['lost']['pnl']['max'])),
+            ('average_profit_trade', locale.currency(analysis['won']['pnl']['average'])),
+            ('average_loss_trade', locale.currency(analysis['lost']['pnl']['average'])),
+            ('total_long_trades', analysis['long']['total']),
+            ('long_trades_win_percentage', str(round(analysis['long']['won']/analysis['long']['total']*100,2))+'%'),
+            ('total_short_trades', analysis['short']['total']),
+            ('short_trades_win_percentage', str(round(analysis['short']['won']/analysis['short']['total']*100,2))+'%')
+        ]
+        
+
+        temp_fig_path = tempfile.NamedTemporaryFile(suffix='.png').name
+        fig = cerebro.plot()[0][0]
+
+        # Adjust the figure size
+        fig.set_size_inches(14, 8)
+
+        # Save the figure with a defined DPI
+        fig.savefig(temp_fig_path, dpi=300)
+
+        # Get the current date and time
+        now = datetime.datetime.now()
+
+        # Convert the datetime object to a string with a specific format
+        formatted_date = now.strftime('%Y-%m-%d %H:%M:%S')
+
+        # Create the PDF
+        pdf_path = '/home/gabrielvieira/flix/backtest-bots/backtestResults/volStrategy/'+formatted_date+'_'+'result.pdf'
+        pdf = UpdatedPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
+        pdf.chapter_title('Optimization Metrics')
+        pdf.chapter_body(table_data)
+        pdf.chapter_image(temp_fig_path)  # Adjusted this line for correct image placement
+        pdf.output(pdf_path)
+
+    
+    
     return strat[0]
-    
-    # userId = str(uuid.uuid4())
-    
-    # json_path = '/home/gabrielvieira/flix/backtest-bots/backtestResults/volStrategy/'+userId+'_'+'backtest_metrics.json'
-    # fig_path = '/home/gabrielvieira/flix/backtest-bots/backtestResults/volStrategy/'+userId+'_'+'plot.png'
-    # # Lista dos resultados do backtest
-    # with open(json_path , 'x') as json_file:
-    #         json.dump(backtestResults, json_file)
-
-    # # Plot cerebro
-    # fig = cerebro.plot()[0][0] # start=50, end=115 Posso colocar indices para olhar alguma data específica
-
-    # # Set the desired figure size in inches
-    # width = 16
-    # height = 9
-    # fig.set_size_inches(width, height)
-
-    # # Save the figure as a PNG file with the specified size
-    # fig.savefig(fig_path, dpi=300)  # Adjust the DPI value as needed
-    
-# if __name__ == '__main__':
-#     params = dict( 
-#     periodBB= 200,
-#     tradeReversion= 0,
-#     tradeTrend= 1,        
-#     nQuartile= 6,
-#     firstLineQuartile= 3,
-#     secondLineQuartile= 10,
-#     multiplicador= 6,
-#     stopLoss= 0.01
-#     )
-#     backtester(params)
     

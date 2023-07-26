@@ -77,7 +77,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def backtester(params, data, generate_report=False):
+def backtester(strategy, params, data, generate_report=False, cash=100000): 
     
     args = parse_args()
     # Create a cerebro entity
@@ -88,7 +88,7 @@ def backtester(params, data, generate_report=False):
     cerebro.addobserver(bt.observers.LogReturns, timeframe=bt.TimeFrame.Days, compression=1)
     # Add a strategy
     
-    cerebro.addstrategy(volStrategy, **params)
+    cerebro.addstrategy(strategy, **params)
     # Create a data feed
     # yf_data = get_timeframe(dataname=yf.download('BTC-USD', '2023-01-01', '2023-06-21', interval = "1d"), 2)
     # data = bt.feeds.GenericCSVData(dataname='BTC_Hourly.csv',fromdate=datetime.datetime(2020, 1, 1),todate=datetime.datetime(2022, 1, 1),datetime=1,open=3,high=4,low=5,close=6,volume=7,openinterest=8)
@@ -107,7 +107,7 @@ def backtester(params, data, generate_report=False):
     #                      timeframe=tframes[args.timeframe],
     #                      compression=args.compression)
     # Set our desired cash start
-    cerebro.broker.setcash(100000.0) # Tenho que aumentar capital nos robôs que dão prejuízo
+    cerebro.broker.setcash(cash) # Tenho que aumentar capital nos robôs que dão prejuízo
     # Set the commission
     cerebro.broker.setcommission(commission=0.0)
 
@@ -149,7 +149,7 @@ def backtester(params, data, generate_report=False):
         params = strat[0].params   
         locale.setlocale(locale.LC_ALL, 'en_US.utf8') 
         getcontext().prec = 2
-        
+         
         table_data = [
             ('n_quartile', params.nQuartile),
             ('entry_line_quartile', params.secondLineQuartile),
@@ -158,7 +158,7 @@ def backtester(params, data, generate_report=False):
             ('trade_trend', params.tradeTrend),
             ('period_bb', params.periodBB),
             ('muliplier', params.multiplicador),
-            ('stop_loss', str(params.stopLoss*100)+'%'),
+            ('stop_loss', str(params.stopLoss*params.multiplicador)+'%'),
             ('initial_deposit', locale.currency(initialDeposit, grouping=True)),
             ('net_profit', locale.currency(analysis['pnl']['net']['total'], grouping=True)),
             ('max_drawdown_percentage', round(analyzers.dd.get_analysis()['max']['drawdown'], 2)),

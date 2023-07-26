@@ -1,0 +1,4 @@
+./backtestResults
+./.vscode
+./__pycache__
+./others

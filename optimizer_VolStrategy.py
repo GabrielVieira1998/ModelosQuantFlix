@@ -18,47 +18,32 @@ def normalizeDf(df):
     # replace this with the path to your JSON file
 
 def get_top_results(IndicatorsJson):
-    df = pd.DataFrame(IndicatorsJson)
+    df = pd.DataFrame([{**sublist[0], **sublist[2]} for sublist in IndicatorsJson])
+    
     df_norm = normalizeDf(df[['Drawdown %', 'Net Profit', 'Profit Factor', 'Drawdown %_OS', 'Net Profit_OS', 'Profit Factor_OS', 'Total Trades_OS']]).dropna(axis=1)
     df['quality'] = ((df_norm['Net Profit']*0.3)-(df_norm['Drawdown %']*0.3))+((df_norm['Net Profit_OS']+df_norm['Profit Factor_OS']*0.2)-df_norm['Drawdown %_OS']*2)+df_norm['Total Trades_OS']
     df_sorted = df.sort_values('quality', ascending=False)
     return df_sorted.head()
 
 pbar = tqdm(desc='Opt runs', leave=True, position=1, unit='run', colour='violet')
-data_bt = bt.feeds.PandasData(dataname=yf.download('BTC-USD', '2014-07-19', '2023-07-04', interval = "1d"))
-data_opt = bt.feeds.PandasData(dataname=yf.download('BTC-USD', '2021-01-01', '2023-07-04', interval = "1d"))
+
 
 def callback(strategy):
     
     pbar.update()
-    strategy.append(backtester(dict(
-        nQuartile=strategy[0].params.nQuartile,
-        firstLineQuartile=strategy[0].params.firstLineQuartile,
-        secondLineQuartile=strategy[0].params.secondLineQuartile,
-        tradeReversion=strategy[0].params.tradeReversion,
-        tradeTrend=strategy[0].params.tradeTrend,
-        stopLoss=strategy[0].params.stopLoss,
-        multiplicador=strategy[0].params.multiplicador,
-        periodBB=strategy[0].params.periodBB), data_bt,False))
+    params_dict = {attr: getattr(strategy[0].params, attr) for attr in dir(strategy[0].params) if not callable(getattr(strategy[0].params, attr)) and not attr.startswith("__")}
+
+    strategy.append(backtester(params_dict, data=data_bt, generate_report=False))
     
     return strategy
-
-if __name__ == '__main__':
+def optmizer(strategy, params, data_bt, data_opt, cash=100000):
     # Create a cerebro entity
     cerebro = bt.Cerebro(maxcpus=None)
 
 
     # Add a strategy
     cerebro.optstrategy(
-        volStrategy,
-        nQuartile=7,# range(5, 11) 
-        periodBB=9,
-        tradeReversion=0, 
-        tradeTrend=1,
-        multiplicador=3, # range(1,6)
-        stopLoss=0.01,
-        firstLineQuartile=range(0,3), # range(0,6)
-        secondLineQuartile=range(3,6) # range(0,6)
+        strategy, **params
         )
     
      # Create a data feed
@@ -68,7 +53,7 @@ if __name__ == '__main__':
     cerebro.adddata(data_opt)
 
     # Set our desired cash start
-    cerebro.broker.setcash(100000.0)
+    cerebro.broker.setcash(cash)
     
     # Add a FixedSize sizer according to the stake
     # Adiciono na classe analyzer os indicadores de resultado que quero buscar
@@ -90,60 +75,82 @@ if __name__ == '__main__':
     ###
     
     IndicatorsJson = []
-    
+    param_size = 0
     # Faço um for dentro de toda a lista de resultados da otimização e dou um append na lista que uso para criar o json
     for x in optimizationResults:
         
+        analysis0 = x[0].analyzers.trades.get_analysis()
+        analysis1 = x[1].analyzers.trades.get_analysis()
+        analysers0 = x[0].analyzers
+        analysers1 = x[1].analyzers
         
-        if (x[0].params.tradeReversion > 0 or x[0].params.tradeTrend > 0) and (x[0].params.firstLineQuartile < x[0].params.secondLineQuartile) and 'pnl' in x[0].analyzers.trades.get_analysis() and x[0].analyzers.trades.get_analysis()['total']['closed'] > 1:
+
+        if 'pnl' in analysis0 and analysis0['total']['closed'] > 1 and analysis0['won']['pnl']['total'] != 0:
+            if analysis0['lost']['pnl']['total'] == 0:
+                analysis0['lost']['pnl']['total'] = 1
+            elif analysis1['lost']['pnl']['total'] == 0:
+                analysis1['lost']['pnl']['total'] = 1
             # print(x[0].analyzers.trades.get_analysis())
-            IndicatorsJson.append({
-                'Periodo BB': x[0].params.periodBB,
-                'nQuartile': x[0].params.nQuartile,
-                'firstQuartile': x[0].params.firstLineQuartile,
-                'secondQuartile':x[0].params.secondLineQuartile,
-                'Opera reversao': x[0].params.tradeReversion,
-                'Opera tendencia': x[0].params.tradeTrend,
-                'Multiplicador': x[0].params.multiplicador,
-                'Stop Loss': x[0].params.stopLoss,
-                'Drawdown %': x[0].analyzers.dd.get_analysis()['max']['drawdown'],
-                'Sharpe Ratio': x[0].analyzers.sharpe.get_analysis()['sharperatio'],
-                'Net Profit': x[0].analyzers.trades.get_analysis()['pnl']['net']['total'],
-                'SQN': x[0].analyzers.sqn.get_analysis()['sqn'],
-                'Profit Factor': abs(x[0].analyzers.trades.get_analysis()['won']['pnl']['total']/x[0].analyzers.trades.get_analysis()['lost']['pnl']['total']),
-                'Total Trades': x[0].analyzers.trades.get_analysis()['total']['closed'],
-                'Taxa de acerto': x[0].analyzers.trades.get_analysis()['won']['total']/x[0].analyzers.trades.get_analysis()['total']['closed'],
-                'Periodo BB_OS':x[1].params.periodBB, 
-                'nQuartile_OS': x[1].params.nQuartile,
-                'firstQuartile_OS': x[1].params.firstLineQuartile,
-                'secondQuartile_OS':x[1].params.secondLineQuartile,
-                'Opera reversao_OS': x[1].params.tradeReversion,
-                'Opera tendencia_OS': x[1].params.tradeTrend,
-                'Stop Loss': x[1].params.stopLoss,
-                'Multiplicador_OS': x[1].params.multiplicador,
-                'Drawdown %_OS': x[1].analyzers.dd.get_analysis()['max']['drawdown'],
-                'Sharpe Ratio_OS': x[1].analyzers.sharpe.get_analysis()['sharperatio'],
-                'Net Profit_OS': x[1].analyzers.trades.get_analysis()['pnl']['net']['total'],
-                'SQN_OS': x[1].analyzers.sqn.get_analysis()['sqn'],
-                'Profit Factor_OS': abs(x[1].analyzers.trades.get_analysis()['won']['pnl']['total']/x[1].analyzers.trades.get_analysis()['lost']['pnl']['total']),
-                'Total Trades_OS': x[1].analyzers.trades.get_analysis()['total']['closed'],
-                'Taxa de acerto_OS': x[1].analyzers.trades.get_analysis()['won']['total']/x[1].analyzers.trades.get_analysis()['total']['closed']
-                }) 
-    
+            x0_dict = {attr: getattr(x[0].params, attr) for attr in dir(x[0].params) if not callable(getattr(x[0].params, attr)) and not attr.startswith("__")}
+            # Alterar '_OS' para minusculo
+            x1_dict = {attr+'_OS': getattr(x[1].params, attr) for attr in dir(x[1].params) if not callable(getattr(x[1].params, attr)) and not attr.startswith("__")}
+            param_size = len(x0_dict)
+            IndicatorsJson.append([{**x0_dict},{**x1_dict},{
+                'Drawdown %': analysers0.dd.get_analysis()['max']['drawdown'],
+                'Sharpe Ratio': analysers0.sharpe.get_analysis()['sharperatio'],
+                'Net Profit': analysis0['pnl']['net']['total'],
+                'SQN': analysers0.sqn.get_analysis()['sqn'],
+                'Profit Factor': abs(analysis0['won']['pnl']['total']/analysis0['lost']['pnl']['total']),
+                'Total Trades': analysis0['total']['closed'],
+                'Taxa de acerto': analysis0['won']['total']/analysis0['total']['closed'],
+                'Drawdown %_OS': analysers1.dd.get_analysis()['max']['drawdown'],
+                'Sharpe Ratio_OS': analysers1.sharpe.get_analysis()['sharperatio'],
+                'Net Profit_OS': analysis1['pnl']['net']['total'],
+                'SQN_OS': analysers1.sqn.get_analysis()['sqn'],
+                'Profit Factor_OS': abs(analysis1['won']['pnl']['total']/analysis1['lost']['pnl']['total']),
+                'Total Trades_OS': analysis1['total']['closed'],
+                'Taxa de acerto_OS': analysis1['won']['total']/analysis1['total']['closed']
+                }]) 
+    # print(IndicatorsJson)
     top_results = get_top_results(IndicatorsJson)
     ###
     print("top results", top_results)
-    for index, row in top_results.iterrows():
-        
-        backtester(dict(
-            nQuartile=int(row['nQuartile']),
-            firstLineQuartile=int(row['firstQuartile']),
-            secondLineQuartile=int(row['secondQuartile']),
-            tradeReversion=int(row['Opera reversao']),
-            tradeTrend=int(row['Opera tendencia']),
-            stopLoss=float(row['Stop Loss']),
-            multiplicador=int(row['Multiplicador']),
-            periodBB=int(row['Periodo BB'])), data_bt,True)
+    
+    for index, row in top_results.iloc[:, :param_size].astype(int).iterrows():
+        backtester(volStrategy, row, data_bt,True)
 
 
+### Chamada da função optimizer
 
+
+data_bt = bt.feeds.PandasData(dataname=yf.download('BTC-USD', '2014-07-19', '2023-07-04', interval = "1d"))
+data_opt = bt.feeds.PandasData(dataname=yf.download('BTC-USD', '2021-01-01', '2023-07-04', interval = "1d"))
+
+optmizer(volStrategy, dict(nQuartile=range(5, 11), 
+        periodBB=9,
+        tradeReversion=0, 
+        tradeTrend=1,
+        multiplicador=range(1,6),
+        stopLoss=1,
+        firstLineQuartile=range(0,6),
+        secondLineQuartile=range(0,6)), data_bt, data_opt)
+
+
+# backtester(volStrategy, dict(nQuartile=range(5, 11), 
+#         periodBB=9,
+#         tradeReversion=0, 
+#         tradeTrend=1,
+#         multiplicador=range(1,6),
+#         stopLoss=1,
+#         firstLineQuartile=range(0,6),
+#         secondLineQuartile=range(0,6)), data_bt, generate_report=True)
+
+
+# optmizer(volStrategy, dict(nQuartile=range(5, 6), 
+#         periodBB=9,
+#         tradeReversion=0, 
+#         tradeTrend=1,
+#         multiplicador=1,
+#         stopLoss=0.01,
+#         firstLineQuartile=0,
+#         secondLineQuartile=range(1,3)))

@@ -1,4 +1,3 @@
-./backtestResults
-./.vscode
-./__pycache__
-./others
+.vscode
+__pycache__
+*.ipynb

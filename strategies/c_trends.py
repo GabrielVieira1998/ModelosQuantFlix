@@ -2,14 +2,14 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 import backtrader as bt
 import csv
-from BollingerBandWidth import BbWidth
+from indicators.BollingerBandWidth import BbWidth
 
 
 # Create a Strategy
 class cTrendsStrategy(bt.Strategy):
     params = (
-        ('periodRsi', 2),
-        ('periodBB', 60),
+        ('periodRsi', 4),
+        ('periodBB', 200),
         ('stopLoss', 0.09)
     )
 
@@ -30,14 +30,14 @@ class cTrendsStrategy(bt.Strategy):
         self.sellPrice = None
         self.buyComm = None
 
-        self.csvFile = open('backtest_history.csv', 'w', newline='')
+        self.csvFile = open('backtest_history_ctrends.csv', 'w', newline='')
         self.csvWriter = csv.writer(self.csvFile)
         self.csvWriter.writerow(['Date', 'Price', 'Direction', 'Type', 'Pnl', 'Size', 'EntryPrice', 'ExitType', 'RSI', 'BBtop', 'BBbot'])
 
         # Add a BB and RSI indicator
         self.bb = bt.indicators.BollingerBands(self.datas[0], period=self.params.periodBB)
         self.rsi = bt.indicators.RelativeStrengthIndex(self.datas[0], period=self.params.periodRsi)
-        self.bbWidth = BbWidth(period=20)
+        self.bbWidth = BbWidth(period=self.params.periodBB)
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
@@ -111,8 +111,8 @@ class cTrendsStrategy(bt.Strategy):
 
         self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' % (pnl, pnlcomm))
         
-        if self.exitType == 'SelfClose':
-            self.broker.cancel(self.orderStop)
+        # if self.exitType == 'SelfClose':
+        #     self.broker.cancel(self.orderStop)
 
         self.csvWriter.writerow([
             self.datas[0].datetime.datetime(0),  # Date
@@ -132,7 +132,7 @@ class cTrendsStrategy(bt.Strategy):
     def next(self):
         if self.order:
             return
-
+        # print("self.bbWidth[0]: ", self.bbWidth[0], "self.bbWidth.bbWidth[0]: ", self.bbWidth.bbWidth[0])
         if self.position:
             if (self.rsi[0] >= 70) and (self.dataclose[0] >= self.bb.top[0]) and (self.position.size > 0):
                 self.order = self.close()

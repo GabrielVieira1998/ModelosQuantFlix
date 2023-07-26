@@ -1,7 +1,7 @@
 import backtrader as bt
 import backtrader.indicators as btind
 
-class GannHiLoActivator(bt.Indicator):
+class Gann_hilo_activator(bt.Indicator):
     lines = ('hilo',)
     params = (
         ('period', 3),

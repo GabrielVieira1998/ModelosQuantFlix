@@ -4,7 +4,11 @@ import backtrader.analyzers as btanalyzers
 from utils.backtester import backtester
 from tqdm.auto import tqdm
 import datetime
+from utils.ohlc import MyHLOC
 from utils.analyzer import analyze_optimization, get_top_results, consolidate_csvs
+import inspect
+
+
 class Optmizer():
     def __init__(self, strategy, params, data_bt, data_opt, cash=100000):
         self.pbar = tqdm(desc='Opt runs', leave=True, position=1, unit='run', colour='violet')
@@ -23,32 +27,29 @@ class Optmizer():
 
         strategy.append(backtester(strategy= self.strategy, params=params_dict, data=self.data_bt, generate_report=False))
         
+        
         return strategy
     
     def optmize(self):
         # Create a self.cerebro entity
         
-        feed = bt.feeds.PandasData(dataname=self.data_opt)
+        feed = MyHLOC(fromdate=datetime.datetime(2021, 1, 1), todate=datetime.datetime(2023, 8, 1), dataname=self.data_opt, timeframe=bt.TimeFrame.Days) # , compression=60
 
-        # Add a self.strategy
+        # Add the Data Feed to Cerebro
+        self.cerebro.adddata(feed)
+        
+         # Add a self.strategy
         self.cerebro.optstrategy(
             self.strategy, **self.params
             )
 
-        # Add the Data Feed to Cerebro
-        self.cerebro.adddata(feed)
-
-        # Set our desired cash start
-        self.cerebro.broker.setcash(self.cash)
-        
+        self.cerebro.addsizer(bt.sizers.PercentSizer, percents=99)
         # Add a FixedSize sizer according to the stake
         # Adiciono na classe analyzer os indicadores de resultado que quero buscar
+        for name, obj in inspect.getmembers(btanalyzers):
+            if inspect.isclass(obj) and name in ['AnnualReturn', 'DrawDown', 'TimeDrawDown',  'PeriodStats', 'Returns', 'SharpeRatio', 'SharpeRatio_A', 'SQN', 'Transactions', 'TradeAnalyzer', 'VWR']:#'TimeReturn','Transactions','PyFolio','PositionsValue', 'LogReturnsRolling', 'GrossLeverage','Calmar', 
+                self.cerebro.addanalyzer(obj, _name=name)
 
-        self.cerebro.addanalyzer(btanalyzers.DrawDown, _name='dd')
-        self.cerebro.addanalyzer(btanalyzers.SharpeRatio, _name='sharpe')
-        self.cerebro.addanalyzer(btanalyzers.Returns, _name='returns')
-        self.cerebro.addanalyzer(btanalyzers.SQN, _name='sqn')
-        self.cerebro.addanalyzer(btanalyzers.TradeAnalyzer, _name='trades')  # Add TradeAnalyzer
         # Set the commission
         self.cerebro.broker.setcommission(commission=0.0)
         
@@ -66,11 +67,16 @@ class Optmizer():
         formatted_date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         # Faço um for dentro de toda a lista de resultados da otimização e dou um append na lista que uso para criar o json
         for x in self.results:
-            results.append(analyze_optimization(x))
+            result = analyze_optimization(x)
+            if result[0]:  # Check if the first dictionary is not empty
+                results.append(result)
+            # results.append(analyze_optimization(x))
+            
         
         param_size = len(results[0][0])
 
         top_results = get_top_results(results)
+        # print(top_results)
         count = 1
         for index, params in top_results.iloc[:, :param_size].astype(int).iterrows():
             backtester(
@@ -83,5 +89,6 @@ class Optmizer():
                 folder_name=formatted_date
                 )
             count += 1
+        
         
         consolidate_csvs(directory_path=f'./results/{self.strategy.name}/{formatted_date}', output_filename='consolidated_result.csv')

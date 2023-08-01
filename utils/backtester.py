@@ -1,55 +1,22 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 import matplotlib
-matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+plt.switch_backend('Agg')
+
+# matplotlib.use('Agg')
 # Import the backtrader platform
 import backtrader.analyzers as btanalyzers
 import backtrader as bt
-import pandas as pd
-# Importando classe da estratégia cTrends
-# from cTrends import cTrendsStrategy
-# from Trends import trendsStrategy
 import argparse
-from fpdf import FPDF
+import inspect
 from decimal import *
 from utils.analyzer import analyze_backtest
+from utils.ohlc import MyHLOC
 import os
-
-class UpdatedPDF(FPDF):
-    # def header(self):
-    #     self.set_font('Arial', 'B', 12)
-    #     self.cell(0, 10, 'Backtest Result', 0, 1, 'C')
-
-    def footer(self):
-        self.set_y(-15)
-        self.set_font('Arial', 'I', 8)
-        self.cell(0, 10, 'Page %s' % self.page_no(), 0, 0, 'C')
-
-    def chapter_title(self, title):
-        self.set_font('Arial', 'B', 16)
-        self.cell(0, 20, title, ln=True, align='C')
-
-    def chapter_body(self, table_data):
-        self.set_fill_color(135, 206, 250)
-        self.set_font('Arial', 'B', 10)
-        
-        col1_width = 55
-        col2_width = 135
-        row_height = 6
-        
-        self.cell(col1_width, row_height, 'Parameters', 1, 0, 'C', fill=True)
-        self.cell(col2_width, row_height, 'Value', 1, 1, 'C', fill=True)
-        
-        self.set_font('Arial', '', 10)
-        self.set_fill_color(255)
-        
-        for row in table_data:
-            self.cell(col1_width, row_height, str(row[0]), 1)
-            self.cell(col2_width, row_height, str(row[1]), 1, align='C')
-            self.ln()
-
-    def chapter_image(self, image_path):
-        self.image(image_path, x=10, y=self.get_y() + 5, w=190, h=90)
+import datetime
+import tempfile
 
 
     
@@ -71,38 +38,60 @@ def parse_args():
     return parser.parse_args()
 
 
-def backtester(strategy, params, data, cash=100000, commission=0.015, generate_report=False, bt_name='single_run', folder_name=False):
+def backtester(strategy, params, data, cash=100000, commission=0, generate_report=False, bt_name='single_run', folder_name=False):
     
     args = parse_args()
     # Create a cerebro entity
-    cerebro = bt.Cerebro(stdstats=True) # writer=True # stdstats=Falsewriter=False, stdstats=True
+    cerebro = bt.Cerebro() # writer=True # stdstats=Falsewriter=False, stdstats=True
+    # writer = bt.WriterFile(
+    #     out='test.csv',
+    #     csv=True
+    # )
+    # cerebro.addwriter(bt.WriterFile, csv=True, out='./test.csv')
     #
     cerebro.addobserver(bt.observers.Value)
     
     cerebro.addobserver(bt.observers.LogReturns, timeframe=bt.TimeFrame.Days, compression=1)
     # Add a strategy
     
-    cerebro.addstrategy(strategy, **params)
-    feed = bt.feeds.PandasData(dataname=data)
+    # feed = bt.feeds.PandasData(dataname=data)
+    feed = MyHLOC(fromdate=datetime.datetime(2017, 9, 1), todate=datetime.datetime(2023, 8, 1), dataname=data, timeframe=bt.TimeFrame.Days)# , compression=60
     # Add the Data Feed to Cerebro
     cerebro.adddata(feed)
+    
+    cerebro.addstrategy(strategy, **params)
 
     cerebro.broker.setcash(cash) # Tenho que aumentar capital nos robôs que dão prejuízo
     # Set the commission
     cerebro.broker.setcommission(commission=commission)
-
+    
     # # Print out the starting conditions
     initialDeposit = cerebro.broker.getvalue()
-
+    sizer = (100*(1-commission))
+    cerebro.addsizer(bt.sizers.PercentSizer, percents=99)
     # Adiciono na classe analyzer os indicadores de resultado do backtest
-    cerebro.addanalyzer(btanalyzers.DrawDown, _name='dd')
-    cerebro.addanalyzer(btanalyzers.SharpeRatio, _name='sharpe')
-    cerebro.addanalyzer(btanalyzers.Returns, _name='returns')
-    cerebro.addanalyzer(btanalyzers.SQN, _name='sqn')
-    cerebro.addanalyzer(btanalyzers.TradeAnalyzer, _name='trades')  # Add TradeAnalyzer
-    
+    for name, obj in inspect.getmembers(btanalyzers):
+        if inspect.isclass(obj) and name in ['AnnualReturn', 'DrawDown', 'TimeDrawDown',  'PeriodStats', 'Returns', 'SharpeRatio', 'SharpeRatio_A', 'SQN', 'Transactions', 'TradeAnalyzer', 'VWR']:#'TimeReturn','Transactions','PositionsValue', 'LogReturnsRolling', 'GrossLeverage','Calmar',         
+            cerebro.addanalyzer(obj, _name=name)
+            
+
+    # cerebro.addanalyzer(btanalyzers.PyFolio, _name='pyfolio')
     # Run over everything
     strat = cerebro.run()  
+
+    # filename = "plot_output.png"
+    # temp_fig_path = os.path.join(os.getcwd(), filename)
+    
+    # figs = cerebro.plot(style='bar', barup='green', bardown='red')
+    # fig = figs[0][0]
+
+    # # Adjust the figure size
+    # fig.set_size_inches(14, 8)
+
+    # # Save the figure with a defined DPI
+    # fig.savefig(temp_fig_path, dpi=300)
+
+    
     
     if generate_report == True:
         
@@ -114,7 +103,7 @@ def backtester(strategy, params, data, cash=100000, commission=0.015, generate_r
         # locale.setlocale(locale.LC_ALL, 'en_US.utf8') 
         # getcontext().prec = 2
         
-        table_data = analyze_backtest(strat)
+        table_data = analyze_backtest(strat, folder_name, bt_name)
         
         # Determine the directory path
         dir_path = f'./results/{strategy.name}/{folder_name}'
@@ -123,32 +112,9 @@ def backtester(strategy, params, data, cash=100000, commission=0.015, generate_r
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
         
-        pd.DataFrame(table_data).to_csv(f'{dir_path}/{bt_name}_result.csv', index=False)
-        # temp_fig_path = tempfile.NamedTemporaryFile(suffix='.png').name
-        # fig = cerebro.plot()[0][0]
-
-        # # Adjust the figure size
-        # fig.set_size_inches(14, 8)
-
-        # # Save the figure with a defined DPI
-        # fig.savefig(temp_fig_path, dpi=300)
-
-        # # Get the current date and time
-        # now = 
-
-        # # Convert the datetime object to a string with a specific format
-        # 
-
-        # # Create the PDF
-        # pdf_path = f'../backtestResults/{strategy.name}/{formatted_date}/{bt_name}_result.pdf'
-        # pdf = UpdatedPDF()
-        # pdf.set_auto_page_break(auto=True, margin=15)
-        # pdf.add_page()
-        # pdf.chapter_title('Optimization Metrics')
-        # pdf.chapter_body(table_data)
-        # pdf.chapter_image(temp_fig_path)  # Adjusted this line for correct image placement
-        # pdf.output(pdf_path)
-
+        # print("dir_path: ", dir_path, "bt_name: ", bt_name)
+        table_data.to_csv(f'{dir_path}/{bt_name}_result.csv', index=False)
+        
     
     
     return strat[0]

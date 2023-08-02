@@ -4,7 +4,7 @@ import backtrader.analyzers as btanalyzers
 from utils.backtester import backtester
 from tqdm.auto import tqdm
 import datetime
-from utils.ohlc import MyHLOC
+
 from utils.analyzer import analyze_optimization, get_top_results, consolidate_csvs
 import inspect
 
@@ -32,9 +32,8 @@ class Optmizer():
     
     def optmize(self):
         # Create a self.cerebro entity
-        
-        feed = MyHLOC(fromdate=datetime.datetime(2021, 1, 1), todate=datetime.datetime(2023, 8, 1), dataname=self.data_opt, timeframe=bt.TimeFrame.Days) # , compression=60
 
+        feed = bt.feeds.PandasData(dataname=self.data_opt)
         # Add the Data Feed to Cerebro
         self.cerebro.adddata(feed)
         

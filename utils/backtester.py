@@ -13,7 +13,7 @@ import argparse
 import inspect
 from decimal import *
 from utils.analyzer import analyze_backtest
-from utils.ohlc import MyHLOC
+
 import os
 import datetime
 import tempfile
@@ -53,9 +53,26 @@ def backtester(strategy, params, data, cash=100000, commission=0, generate_repor
     
     cerebro.addobserver(bt.observers.LogReturns, timeframe=bt.TimeFrame.Days, compression=1)
     # Add a strategy
-    
-    # feed = bt.feeds.PandasData(dataname=data)
-    feed = MyHLOC(fromdate=datetime.datetime(2017, 9, 1), todate=datetime.datetime(2023, 8, 1), dataname=data, timeframe=bt.TimeFrame.Days)# , compression=60
+    print("Estou aqui")
+    feed = bt.feeds.PandasData(dataname=data)
+    print("feed")
+    # feed = MyHLOC(fromdate=datetime.datetime(2017, 9, 1), todate=datetime.datetime(2023, 8, 1), dataname=data, timeframe=bt.TimeFrame.Days)# , compression=60
+    # feed = bt.feeds.GenericCSVData(dataname='./data/base_BTC.csv',
+    #                            fromdate=datetime.datetime(2017,8,17),
+    #                            todate= datetime.datetime(2023, 8, 1),
+    #                            nullvalue= 0.0,
+    #                            dtformat=  ('%Y-%m-%d'), 
+    #                            tmformat= ('%H:%M:%S'),
+    #                            datetime= 0,
+    #                            time= 1,
+    #                            open= 2,
+    #                            high= 3,
+    #                            low= 4,
+    #                            close= 5,
+    #                            volume= 6,
+    #                            openinterest=-1,
+    #                            timeframe=bt.TimeFrame.Minutes,compression=60)
+
     # Add the Data Feed to Cerebro
     cerebro.adddata(feed)
     
@@ -79,18 +96,19 @@ def backtester(strategy, params, data, cash=100000, commission=0, generate_repor
     # Run over everything
     strat = cerebro.run()  
 
-    # filename = "plot_output.png"
-    # temp_fig_path = os.path.join(os.getcwd(), filename)
+#########################################
+    filename = "plot_output.png"
+    temp_fig_path = os.path.join(os.getcwd(), filename)
     
-    # figs = cerebro.plot(style='bar', barup='green', bardown='red')
-    # fig = figs[0][0]
+    figs = cerebro.plot(style='bar', barup='green', bardown='red')
+    fig = figs[0][0]
 
-    # # Adjust the figure size
-    # fig.set_size_inches(14, 8)
+    # Adjust the figure size
+    fig.set_size_inches(14, 8)
 
-    # # Save the figure with a defined DPI
-    # fig.savefig(temp_fig_path, dpi=300)
-
+    # Save the figure with a defined DPI
+    fig.savefig(temp_fig_path, dpi=300)
+#########################################
     
     
     if generate_report == True:

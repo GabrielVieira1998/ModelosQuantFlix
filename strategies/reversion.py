@@ -13,8 +13,8 @@ class Sma_reversion(bt.Strategy):
         ('period_short_sma', 50),
         ('period_bb', 200),
         ('sma_distance', 5.0), # Threshold for distance between SMA200 and SMA50
-        ('stop_loss', 0.01),
-        ('multiplier', 1)
+        ('trail_percent', 0.02)
+
     )
 
     name = 'sma_reversion'
@@ -97,7 +97,7 @@ class Sma_reversion(bt.Strategy):
         
         position_size = self.position.size
         # Quando sinal igual a trend follow eu já sei que estou entre as first e second line, portanto basta checar bbwidth com a second line das últimas barras.
-        if self.sma_distance[0] < self.params.distanceThreshold:
+        if self.sma_distance[0] < self.params.sma_distance:
             
             if not self.position:  # If not in the market already
                 if self.dataclose[0] >= self.bb.top[0]:  # Touching upper band
@@ -107,7 +107,7 @@ class Sma_reversion(bt.Strategy):
             else:
                 if ((self.dataclose[0] <= self.bb.mid[0]) and (position_size > 0)): 
                     self.close(size=position_size/2)
-                    self.order = self.sell(exectype=bt.Order.StopTrail, trailpercent=0.02) 
+                    self.order = self.sell(size=position_size/2, exectype=bt.Order.StopTrail, trailpercent=self.params.trail_percent) 
                 elif (self.dataclose[0] >= self.bb.mid[0]) and (position_size < 1):
                     self.close(size=position_size/2)
-                    self.order = self.buy(exectype=bt.Order.StopTrail, trailpercent=0.02) 
+                    self.order = self.buy(size=position_size/2, exectype=bt.Order.StopTrail, trailpercent=self.params.trail_percent) 

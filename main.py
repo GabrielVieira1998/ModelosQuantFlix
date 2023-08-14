@@ -2,7 +2,7 @@ from utils.optimizer import Optmizer
 from utils.backtester import backtester
 from strategies.bbwidth import bbwidth
 from strategies.trends import Trends_strategy
-from teste_backtrader import MonkeyScalper
+from strategies.monkey_scalper import MonkeyScalper
 import yfinance as yf
 import pandas as pd
 # data_bt = yf.download('BTC-USD', '2022-01-01', '2023-07-30', interval = "60m")
@@ -49,19 +49,9 @@ for chunk in pd.read_csv('./data/BTCBUSD-bookTicker-2023-07.csv', chunksize=chun
 
 # Concatenate chunks
 df_seconds = pd.concat(chunks)
-
 df_seconds = df_seconds[df_seconds.index <= '2023-07-08']
-# print(df_seconds)
-
-# df = pd.read_csv(filepath_or_buffer='./data/BTCBUSD-bookTicker-2023-08-06.csv')
-# timestamp = pd.to_datetime(df['event_time'], unit='ms')
-# df.index = pd.DatetimeIndex(timestamp)
-# df_seconds = df.resample('s').last()
-# df_seconds.dropna(axis=0, inplace=True)
 
 
-# csv_file_path = './data/base_BTCBUSD_tick.csv'
-# csv_file_path = './data/base_BTCUSDT_1d.csv'
 data_opt = df_seconds 
 data_bt = df_seconds
 

@@ -1,8 +1,8 @@
 # Importando os dados tick a tick da Binance
 1. Acessar o link: https://www.binance.com/en/landing/data
-2. Ir até 'Book Ticker'
-3. Selecionar 'USDⓢ-M' 
-4. Digitar dentro de 'Symbol (Max: 5)' o symbol desejado
+2. Ir até 'Book Ticker'.
+3. Selecionar 'USDⓢ-M'.
+4. Digitar dentro de 'Symbol (Max: 5)' o symbol desejado.
 5. Selecionar o tipo de intervalo.
 6. Selecionar o período.
 5. Fazer o download e jogar o arquivo em csv dentro da pasta 'data'.

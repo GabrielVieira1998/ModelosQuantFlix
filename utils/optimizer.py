@@ -33,32 +33,44 @@ class Optmizer():
     def optmize(self):
         # Create a self.cerebro entity
 
-        feed = bt.feeds.PandasData(dataname=self.data_opt)
-        # Add the Data Feed to Cerebro
-        self.cerebro.adddata(feed)
+        # feed = bt.feeds.PandasData(dataname=self.data_opt)
+        # # Add the Data Feed to Cerebro
+        # self.cerebro.adddata(feed)
         
+        #  # Add a self.strategy
+        # self.cerebro.optstrategy(
+        #     self.strategy, **self.params
+        #     )
+
+        # self.cerebro.addsizer(bt.sizers.PercentSizer, percents=99)
          # Add a self.strategy
         self.cerebro.optstrategy(
             self.strategy, **self.params
             )
-
-        self.cerebro.addsizer(bt.sizers.PercentSizer, percents=99)
+        
+        feed = bt.feeds.PandasData(dataname=self.data_opt, datetime=None, open=1, high=1, low=1, close=1, volume=4)
+        
+        # data = self.cerebro.resampledata(feed,
+        #                timeframe=bt.TimeFrame.Seconds)
+        
+        self.cerebro.replaydata(feed,
+                       timeframe=bt.TimeFrame.Minutes)
+        self.cerebro.broker.setcash(self.cash) # Tenho que aumentar capital nos robôs que dão prejuízo
+        # Set the commission
+        # cerebro.broker.setcommission(commission=commission)
+        self.cerebro.broker.setcommission(
+            commission=0.00027)
         # Add a FixedSize sizer according to the stake
         # Adiciono na classe analyzer os indicadores de resultado que quero buscar
         for name, obj in inspect.getmembers(btanalyzers):
             if inspect.isclass(obj) and name in ['AnnualReturn', 'DrawDown', 'TimeDrawDown',  'PeriodStats', 'Returns', 'SharpeRatio', 'SharpeRatio_A', 'SQN', 'Transactions', 'TradeAnalyzer', 'VWR']:#'TimeReturn','Transactions','PyFolio','PositionsValue', 'LogReturnsRolling', 'GrossLeverage','Calmar', 
                 self.cerebro.addanalyzer(obj, _name=name)
-
         # Set the commission
-        self.cerebro.broker.setcommission(commission=0.0)
-        
+        # self.cerebro.broker.setcommission(commission=0.0)
         # Variável optimizationResults retorna uma lista de todos os resultados
         self.cerebro.optcallback(self._callback)
         # self.cerebro.optreturn = False  # If optimization is being used
         self.results = self.cerebro.run(maxcpus=1)     # Force single-core execution
-
-        # self.results = self.cerebro.run()
-
         self.getBestRuns()
 
     def getBestRuns(self):

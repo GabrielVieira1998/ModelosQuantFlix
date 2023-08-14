@@ -2,6 +2,7 @@ from utils.optimizer import Optmizer
 from utils.backtester import backtester
 from strategies.bbwidth import bbwidth
 from strategies.trends import Trends_strategy
+from teste_backtrader import MonkeyScalper
 import yfinance as yf
 import pandas as pd
 # data_bt = yf.download('BTC-USD', '2022-01-01', '2023-07-30', interval = "60m")
@@ -29,46 +30,113 @@ def load_and_filter_data(csv_file_path, start_date, end_date):
     
     return filtered_data
 
-csv_file_path = './data/base_BTCUSDT_60m.csv'
-data_opt = load_and_filter_data(csv_file_path, '2022-01-01', '2023-08-01')
-data_bt = load_and_filter_data(csv_file_path, '2017-08-17', '2023-08-01')
+
+
+# Define data types to reduce memory consumption
+dtypes = {
+    'event_time': 'int64'  # Other columns can be added here with appropriate data types
+}
+
+# Read in chunks
+chunk_size = 1_000_000  # Adjust this based on your system's memory
+chunks = []
+for chunk in pd.read_csv('./data/BTCBUSD-bookTicker-2023-07.csv', chunksize=chunk_size, dtype=dtypes):
+    timestamp = pd.to_datetime(chunk['event_time'], unit='ms')
+    chunk.index = pd.DatetimeIndex(timestamp)
+    chunk_resampled = chunk.resample('s').last().dropna()
+    chunk_resampled = chunk_resampled.ffill()
+    chunks.append(chunk_resampled)
+
+# Concatenate chunks
+df_seconds = pd.concat(chunks)
+
+df_seconds = df_seconds[df_seconds.index <= '2023-07-08']
+# print(df_seconds)
+
+# df = pd.read_csv(filepath_or_buffer='./data/BTCBUSD-bookTicker-2023-08-06.csv')
+# timestamp = pd.to_datetime(df['event_time'], unit='ms')
+# df.index = pd.DatetimeIndex(timestamp)
+# df_seconds = df.resample('s').last()
+# df_seconds.dropna(axis=0, inplace=True)
+
+
+# csv_file_path = './data/base_BTCBUSD_tick.csv'
+# csv_file_path = './data/base_BTCUSDT_1d.csv'
+data_opt = df_seconds 
+data_bt = df_seconds
+
+# # csv_file_path = './data/base_BTCBUSD_tick.csv'
+# csv_file_path = './data/base_BTCUSDT_1d.csv'
+# data_opt = load_and_filter_data(csv_file_path, '2023-01-01', '2023-08-01')
+# data_bt = load_and_filter_data(csv_file_path, '2022-07-05', '2023-07-31')
 
 
 
 cash = 100000
 
+##
+# ## OTIMIZAÇÕES 
 
-##
-## OTIMIZAÇÕES 
-##
-optimizerclass = Optmizer(
-    strategy = bbwidth, 
+# optimizerclass = Optmizer(
+#     strategy = MonkeyScalper, 
+#     params = dict(
+#         bars=3, 
+#         stop_loss=range(10,50, 10),
+#         alvo=range(50, 500, 50) 
+#         ), 
+#     data_bt = data_bt, 
+#     data_opt = data_opt,
+#     cash = cash
+# )
+
+# optimizerclass.optmize()
+
+
+backtester(
+    strategy = MonkeyScalper, 
     params = dict(
-        nQuartile=range(5, 10), 
-        periodBB=200,
-        tradeReversion=0, 
-        tradeTrend=1,
-        # multiplicador=range(3,6),
-        # stopLoss=1,
-        firstLineQuartile=range(0,4),
-        secondLineQuartile=range(1,6)
+        bars=3,
+        stop_loss=1,
+        alvo=5
         ), 
-    data_bt = data_bt, 
-    data_opt = data_opt,
-    cash = cash
+    data = data_bt, 
+    # data_opt = data_opt,
+    cash = cash,
+    generate_report=True
 )
 
-optimizerclass.optmize()
+
+
+
+
+# optimizerclass = Optmizer(
+#     strategy = bbwidth, 
+#     params = dict(
+#         nQuartile=range(5, 10), 
+#         periodBB=200,
+#         tradeReversion=0, 
+#         tradeTrend=1,
+#         # multiplicador=range(3,6),
+#         # stopLoss=1,
+#         firstLineQuartile=range(0,3),
+#         secondLineQuartile=range(1,6)
+#         ), 
+#     data_bt = data_bt, 
+#     data_opt = data_opt,
+#     cash = cash
+# )
+
+# optimizerclass.optmize()
 
 # optimizerclass = Optmizer(
 #     strategy = Trends_strategy, 
 #     params = dict(
 #         # atrPeriod = 63,
-#         # atrDist = 3,
+#         atrDist = range(100, 900, 50),
 #         periodMe1=12,
 #         periodMe2=26,
 #         periodSignal=9,
-#         periodHilo=range(20, 40)
+#         periodHilo=range(20, 45,5)
 #         # stopLoss = 0.09
 #         ), 
 #     data_bt = data_bt, 
@@ -84,11 +152,11 @@ optimizerclass.optmize()
 #     strategy = Trends_strategy, 
 #     params = dict(
 #         atrPeriod = 63,
-#         atrDist = 90,
+#         atrDist = 100,
 #         periodMe1=12,
 #         periodMe2=26,
 #         periodSignal=9,
-#         periodHilo=26
+#         periodHilo=20
 #         # stopLoss = 0.09
 #         ), 
 
@@ -99,14 +167,14 @@ optimizerclass.optmize()
 # backtester(
 #     strategy = bbwidth, 
 #     params = dict(
-#         nQuartile=5, 
-#         periodBB=200,
+#         nQuartile=7, 
+#         periodBB=9,
 #         tradeReversion=0, 
 #         tradeTrend=1,
-#         multiplicador=5,
+#         multiplicador=6,
 #         stopLoss=1,
 #         firstLineQuartile=0,
-#         secondLineQuartile=3),
+#         secondLineQuartile=4),
 #     data = data_bt,
 #     cash = cash,
 #     generate_report=True)

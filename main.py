@@ -1,9 +1,9 @@
-from utils.optimizer import Optmizer
+from optimizer import Optmizer
 from utils.backtester import backtester
 from strategies.bbwidth import bbwidth
 from strategies.trends import Trends_strategy
 from strategies.monkey_scalper import MonkeyScalper
-import yfinance as yf
+# import yfinance as yf
 import pandas as pd
 # data_bt = yf.download('BTC-USD', '2022-01-01', '2023-07-30', interval = "60m")
 # data_opt = yf.download('BTC-USDT', '2017-08-17', '2023-07-26', interval = "1d")
@@ -54,7 +54,7 @@ df_seconds = df_seconds[df_seconds.index <= '2023-07-08']
 
 data_opt = df_seconds 
 data_bt = df_seconds
-
+print(data_bt)
 # # csv_file_path = './data/base_BTCBUSD_tick.csv'
 # csv_file_path = './data/base_BTCUSDT_1d.csv'
 # data_opt = load_and_filter_data(csv_file_path, '2023-01-01', '2023-08-01')
@@ -67,33 +67,33 @@ cash = 100000
 ##
 # ## OTIMIZAÇÕES 
 
-# optimizerclass = Optmizer(
-#     strategy = MonkeyScalper, 
-#     params = dict(
-#         bars=3, 
-#         stop_loss=range(10,50, 10),
-#         alvo=range(50, 500, 50) 
-#         ), 
-#     data_bt = data_bt, 
-#     data_opt = data_opt,
-#     cash = cash
-# )
-
-# optimizerclass.optmize()
-
-
-backtester(
+optimizerclass = Optmizer(
     strategy = MonkeyScalper, 
     params = dict(
-        bars=3,
-        stop_loss=1,
-        alvo=5
+        bars=range(1,4), 
+        stop_loss=range(10,50, 10),
+        alvo=range(50, 500, 50) 
         ), 
-    data = data_bt, 
-    # data_opt = data_opt,
-    cash = cash,
-    generate_report=True
+    data_bt = data_bt, 
+    data_opt = data_opt,
+    cash = cash
 )
+
+optimizerclass.optmize()
+
+
+# backtester(
+#     strategy = MonkeyScalper, 
+#     params = dict(
+#         bars=3,
+#         stop_loss=1,
+#         alvo=5
+#         ), 
+#     data = data_bt, 
+#     # data_opt = data_opt,
+#     cash = cash,
+#     generate_report=True
+# )
 
 
 

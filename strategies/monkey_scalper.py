@@ -1,5 +1,8 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
+import pyfolio as pf
+
+
 
 import argparse
 import os
@@ -9,8 +12,10 @@ import backtrader.indicators as btind
 import matplotlib.pyplot as plt
 import datetime
 import pandas as pd
-plt.switch_backend('Agg')
-
+# plt.switch_backend('Agg')
+# silence warnings
+import warnings
+warnings.filterwarnings('ignore')
 class MonkeyScalper(bt.Strategy):
     params = (
         ('bars', 10),
@@ -37,95 +42,12 @@ class MonkeyScalper(bt.Strategy):
 
     def start(self):
         self.counter = 0
-
-    # def notify_order(self, order):
-    #     # print(order)
-    #     # if order.status in [order.Submitted, order.Accepted]:
-    #     #     # Buy/Sell order submitted/accepted by broker - Nothing to do
-    #     #     return
-
-    #     if order.status in [order.Completed]:
-    #         if order.isbuy():
-    #             self.log('BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
-    #                      (order.executed.price,
-    #                       order.executed.value,
-    #                       order.executed.comm
-    #                       ))
-            
-
-    #         else:  # Sell
-    #             # self.log('SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
-    #             #          (order.executed.price,
-    #             #           order.executed.value,
-    #             #           order.executed.comm
-    #             #           ))
-
-                
-    #             self.exitType = ''
-                
-    #             # if self.buyPrice is None or order.executed.price > self.buyPrice:
-    #             #     entry_exitType = 'Entry'
-    #             # else:
-    #             #     entry_exitType = 'Exit'
-
-                
-
-    #         self.bar_executed = len(self)
-
-    #     # elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-    #     #     self.log('Order Canceled/Margin/Rejected')
-    #         # print(order.Margin)
-
-    #     # Write down: no pending order
-    #     self.order = None
-
-    # def notify_trade(self, trade):
-    #     if not trade.isclosed:
-    #         return
-
-    #     pnl = trade.pnl
-    #     pnlcomm = trade.pnlcomm
-    #     # print("Cancelando stop")
-        # self.broker.cancel(self.orderStop)
-        # self.broker.cancel(self.orderTakeProfit)
-
-        # Self.Close seria nosso take profit, pois ele só zera na inversão do indicador. 
-        # if self.exitType == '':
-            
-        #     self.exitType = 'StopLoss' if pnl < 0 else 'SelfClose'
-
-    #     self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' % (pnl, pnlcomm))
     
     
     def prenext(self):
         self.counter += 1
         print('prenext len %d - counter %d' % (len(self), self.counter))
     
-    
-    
-    # def direction(self):
-   
-    #     unique_values = [self.data0.close[0]]
-    #     # print(len(self.datas[0]))
-    #     direction = 0
-    #     last_value = self.data.close[0]
-    #     for i in self.datas:
-    #         # print(i.close[0])
-    #         if i == self.data0.close[0]:
-    #             continue
-    #         if i not in unique_values:
-    #             if last_value > i:
-    #                 direction += 1
-    #             else:
-    #                 direction -= 1
-    #             last_value = i
-    #             unique_values.append(i)
-    #             # print(unique_values)
-
-    #         if len(unique_values) == 4:
-    #             break
-    #     return direction        
-        
     def direction(self):
         unique_values = []
         direction = 0
@@ -174,7 +96,7 @@ class MonkeyScalper(bt.Strategy):
             
 
             
-            # print('---next len %d - counter %d - data %s' % (len(self), self.counter, self.datas[0].datetime.time(0)))
+            print('---next len %d - counter %d - data %s' % (len(self), self.counter, self.datas[0].datetime.time(0)))
 
             position_size = 1
             direction = self.direction()
@@ -195,98 +117,89 @@ class MonkeyScalper(bt.Strategy):
                     self.buy_bracket(price=price, stopprice=price-self.p.stop_loss, limitprice=price+self.p.alvo, size=position_size, exectype=bt.Order.Limit)#, valid=datetime.timedelta(0,2)
             self.barCount = len(self)
             
-
-
-# def runstrat():
+if __name__ == '__main__':
     
-#     args = parse_args()
+    # Define data types to reduce memory consumption
+    dtypes = {
+        'event_time': 'int64'  # Other columns can be added here with appropriate data types
+    }
 
-#     # Create a cerebro entity
-#     cerebro = bt.Cerebro(stdstats=True)
-    
-#     cerebro.addstrategy(
-#         MonkeyScalper,
-#         # args for the strategy
-#         bars=3,
-#     )
-#     df = pd.read_csv(filepath_or_buffer='./data/BTCBUSD-bookTicker-2023-08-06.csv')
-#     timestamp = pd.to_datetime(df['event_time'], unit='ms')
-#     df.index = pd.DatetimeIndex(timestamp)
-#     df_seconds = df.resample('s').last()
-#     df_seconds.dropna(axis=0, inplace=True)
-#     data = bt.feeds.PandasData(dataname=df_seconds, datetime=None, open=1, high=1, low=1, close=1, volume=5)
+    # Read in chunks
+    chunk_size = 1_000_000  # Adjust this based on your system's memory
+    chunks = []
+    for chunk in pd.read_csv('./data/BTCBUSD-bookTicker-2023-07.csv', chunksize=chunk_size, dtype=dtypes):
+        timestamp = pd.to_datetime(chunk['event_time'], unit='ms')
+        chunk.index = pd.DatetimeIndex(timestamp)
+        chunk_resampled = chunk.resample('s').last().dropna()
+        chunk_resampled = chunk_resampled.ffill()
+        chunks.append(chunk_resampled)
 
-#     # Load the Data
-#     # datapath = args.dataname or './data/BTCBUSD-bookTicker-2023-08-06.csv'
-#     # data = bt.feeds.GenericCSVData(
-#     #     dataname=datapath,
-#     #     datetime=6,
-#     #     open=1,
-#     #     close=1,
-#     #     high=1,
-#     #     low=1,
-#     #     volume=4,
-#     #     dtformat=lambda x:datetime.datetime.fromtimestamp(round(int(x)/1000)),
-#     #     timeframe=bt.TimeFrame.Ticks,
-#     # )
-
-#     # Handy dictionary for the argument timeframe conversion
-#     tframes = dict(
-#         daily=bt.TimeFrame.Days,
-#         weekly=bt.TimeFrame.Weeks,
-#         monthly=bt.TimeFrame.Months)
-
-#     # First add the original data - smaller timeframe
-#     # cerebro.resampledata(data,
-#     #                    timeframe=bt.TimeFrame.Minutes, compression=30)
-   
-#     cerebro.replaydata(data,
-#                        timeframe=bt.TimeFrame.Minutes)
+    # Concatenate chunks
+    df_seconds = pd.concat(chunks)
+    df_seconds = df_seconds[df_seconds.index <= '2023-07-08']
 
 
-#     cerebro.broker.setcash(1000000)
-#     cerebro.broker.setcommission(
-#         commission=0.000012, margin=None, mult=1)
-    
-#     #############
-#     # Run over everything
-#     cerebro.run()
-#     print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
-#     # #############
-#     filename = "plot_output.png"
-#     temp_fig_path = os.path.join(os.getcwd(), filename)
-    
-#     figs = cerebro.plot(style='candle', barup='green', bardown='red')
-#     fig = figs
+    data_opt = df_seconds 
+    data_bt = df_seconds
+    # Create a cerebro entity
+    cerebro = bt.Cerebro(maxcpus=None)
 
-#     # Adjust the figure size
-#     # fig.set_size_inches(14, 8)
+    # Add a strategy
+    cerebro.optstrategy(
+        strategy = MonkeyScalper, 
+        bars=range(1,4,1), 
+        stop_loss=range(10,50, 10),
+        alvo=range(50, 500, 50) 
+    )
+    feed = bt.feeds.PandasData(dataname=data_opt, datetime=None, open=1, high=1, low=1, close=1, volume=4)
 
-#     # Save the figure with a defined DPI
-#     fig.show()
+    # data = self.cerebro.resampledata(feed,
+    #                timeframe=bt.TimeFrame.Seconds)
 
+    cerebro.replaydata(feed,
+                    timeframe=bt.TimeFrame.Minutes)
+    # Create a Data Feed
+    # datapath = ('../datas/2006-day-001.txt')
+    # data = bt.feeds.BacktraderCSVData(dataname=datapath)
+    cerebro.addanalyzer(bt.analyzers.PyFolio)
+    # Add the Data Feed to Cerebro
+    # cerebro.adddata(data)
 
+    # clock the start of the process
+    # tstart = time.clock()
 
+    # Run over everything
+    stratruns = cerebro.run()
 
-# def parse_args():
-#     parser = argparse.ArgumentParser(
-#         description='Pandas test script')
+    # clock the end of the process
+    # tend = time.clock()
 
-#     parser.add_argument('--dataname', default='', required=False,
-#                         help='File Data to Load')
+    print('==================================================')
+    for stratrun in stratruns:
+        print('**************************************************')
+        for strat in stratrun:
 
-#     parser.add_argument('--timeframe', default='daily', required=False,
-#                         choices=['daily', 'weekly', 'monhtly'],
-#                         help='Timeframe to resample to')
+            print('--------------------------------------------------')
+            print(strat.p._getkwargs())
+            # print()
+            pyfoliozer = strat.analyzers.getbyname('pyfolio')
+            returns, positions, transactions, gross_lev = pyfoliozer.get_pf_items()
+            # Get the current figure
 
-#     parser.add_argument('--compression', default=1, required=False, type=int,
-#                         help='Compress n bars into 1')
+            pf.create_full_tear_sheet(
+                returns,
+                positions=positions,
+                transactions=transactions,
+                gross_lev=gross_lev,
+                round_trips=True)
+            
+            fig = plt.gcf()
 
-#     parser.add_argument('--bars', default=10, required=False, type=int,
-#                         help='bars to apply to indicator')
+            # Save the figure with the timestamp as the name
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+            file_path = os.path.join("./pyfolio", f'{timestamp}.png')
+            fig.savefig(file_path)
+    print('==================================================')
 
-#     return parser.parse_args()
-
-
-# if __name__ == '__main__':
-#     runstrat()
+    # print out the result
+    # print('Time used:', str(tend - tstart))

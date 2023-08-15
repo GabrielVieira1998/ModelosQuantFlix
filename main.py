@@ -67,33 +67,33 @@ cash = 100000
 ##
 # ## OTIMIZAÇÕES 
 
-# optimizerclass = Optmizer(
-#     strategy = MonkeyScalper, 
-#     params = dict(
-#         bars=3, 
-#         stop_loss=range(10,50, 10),
-#         alvo=range(50, 500, 50) 
-#         ), 
-#     data_bt = data_bt, 
-#     data_opt = data_opt,
-#     cash = cash
-# )
-
-# optimizerclass.optmize()
-
-
-backtester(
+optimizerclass = Optmizer(
     strategy = MonkeyScalper, 
     params = dict(
-        bars=3,
-        stop_loss=1,
-        alvo=5
+        bars=range(1,4,1), 
+        stop_loss=range(10,50, 10),
+        alvo=range(50, 500, 50) 
         ), 
-    data = data_bt, 
-    # data_opt = data_opt,
-    cash = cash,
-    generate_report=True
+    data_bt = data_bt, 
+    data_opt = data_opt,
+    cash = cash
 )
+
+optimizerclass.optmize()
+
+
+# backtester(
+#     strategy = MonkeyScalper, 
+#     params = dict(
+#         bars=1,
+#         stop_loss=1,
+#         alvo=5
+#         ), 
+#     data = data_bt, 
+#     # data_opt = data_opt,
+#     cash = cash,
+#     generate_report=True
+# )
 
 
 

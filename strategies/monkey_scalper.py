@@ -90,12 +90,12 @@ class MonkeyScalper(bt.Strategy):
             else:  # Sell
                 self.entryPrice = order.executed.price
 
-        # elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-        #     self.log('Order Canceled/Margin/Rejected')
-        #     print(order.status)
-        #     print(order.Margin)
-        #     print(order.Rejected)
-        #     print(order.Canceled)
+        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
+            self.log('Order Canceled/Margin/Rejected')
+            print(order.status)
+            print(order.Margin)
+            print(order.Rejected)
+            print(order.Canceled)
 
         # Write down: no pending order
         
@@ -228,37 +228,39 @@ def run_single_backtest(bars, stop_loss, alvo):
     
     # Run the backtest
     stratruns = cerebro.run()
-    strat = stratruns[0]
-    try:
-        pyfoliozer = strat.analyzers.getbyname('pyfolio')
-        returns, positions, transactions, gross_lev = pyfoliozer.get_pf_items()
-        # Check if returns are not empty
-        if not returns.empty:
-            pf.create_simple_tear_sheet(
-                returns,
-                positions=positions,
-                transactions=transactions,
-            )
-            
-            fig = plt.gcf()
+    
+    for stratrun in stratruns:
+            for strat in stratrun:
+                try:
+                    pyfoliozer = strat.analyzers.getbyname('pyfolio')
+                    returns, positions, transactions, gross_lev = pyfoliozer.get_pf_items()
+                    # Check if returns are not empty
+                    if not returns.empty:
+                        pf.create_simple_tear_sheet(
+                            returns,
+                            positions=positions,
+                            transactions=transactions,
+                        )
+                        
+                        fig = plt.gcf()
 
-            # Save the figure with the timestamp as the name
-            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-            file_path = os.path.join("./pyfolio", f'{timestamp}_stoploss{stop_loss}_alvo{alvo}_bars{bars}.png')
-            transactions.to_csv(os.path.join("./pyfolio", f'transactions-{timestamp}_stoploss{stop_loss}_alvo{alvo}_bars{bars}.csv'))
-            positions.to_csv(os.path.join("./pyfolio", f'positions-{timestamp}_stoploss{stop_loss}_alvo{alvo}_bars{bars}.csv'))
-            returns.to_csv(os.path.join("./pyfolio", f'returns-{timestamp}_stoploss{stop_loss}_alvo{alvo}_bars{bars}.csv'))
+                        # Save the figure with the timestamp as the name
+                        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                        file_path = os.path.join("./pyfolio", f'{timestamp}_stoploss{stop_loss}_alvo{alvo}_bars{bars}.png')
+                        transactions.to_csv(os.path.join("./pyfolio", f'transactions-{timestamp}_stoploss{stop_loss}_alvo{alvo}_bars{bars}.csv'))
+                        positions.to_csv(os.path.join("./pyfolio", f'positions-{timestamp}_stoploss{stop_loss}_alvo{alvo}_bars{bars}.csv'))
+                        returns.to_csv(os.path.join("./pyfolio", f'returns-{timestamp}_stoploss{stop_loss}_alvo{alvo}_bars{bars}.csv'))
 
-            fig.savefig(file_path)
+                        fig.savefig(file_path)
 
-            # Close the current figure
-            plt.close(fig)
-            
-        else:
-            print(f"No returns data for stop_loss={stop_loss} / alvo={alvo} / bars={bars}.")
-            
-    except Exception as e:
-        print(f"Error during plotting: {e}")
+                        # Close the current figure
+                        plt.close(fig)
+                        
+                    else:
+                        print(f"No returns data for stop_loss={stop_loss} / alvo={alvo} / bars={bars}.")
+                        
+                except Exception as e:
+                    print(f"Error during plotting: {e}")
 
     print('==================================================')
     print(f"Finished backtest for stop_loss={stop_loss} / alvo={alvo} / bars={bars}.")
@@ -287,11 +289,11 @@ if __name__ == '__main__':
     # df_seconds = df_seconds[df_seconds.index >= '2023-07-20 23:30:00']
     
     # Create a list to hold our coroutines
-    # tasks = []
+    tasks = []
 
     for bar in range(1, 6):
-        for stop in range(1, 20, 1):
-            for a in range(5, 50, 5):
+        for stop in range(5, 40, 5):
+            for a in range(50, 325, 25):
                 print(f"Running backtest for stop_loss={stop} / alvo={a} / bars={bar}")
                 run_single_backtest(bar, stop, a)
                 # tasks.append(task)

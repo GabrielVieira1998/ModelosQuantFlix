@@ -1,20 +1,17 @@
-# Importando os dados tick a tick da Binance
-1. Acessar o link: https://www.binance.com/en/landing/data
-2. Ir até 'Book Ticker'.
-3. Selecionar 'USDⓢ-M'.
-4. Digitar dentro de 'Symbol (Max: 5)' o symbol desejado.
-5. Selecionar o tipo de intervalo.
-6. Selecionar o período.
-5. Fazer o download e jogar o arquivo em csv dentro da pasta 'data'.
+# Importing Tick-by-Tick Data from Binance
+1. Access the link: [Binance Data](https://www.binance.com/en/landing/data)
+2. Navigate to 'Book Ticker'.
+3. Select 'USDⓢ-M'.
+4. Enter the desired symbol within 'Symbol (Max: 5)'.
+5. Choose the interval type.
+6. Select the period.
+7. Download the file and place it in the 'data' folder in CSV format.
 
-
-# Otimização
-Para rodar uma otimização, basta chamar a função 'Optimizer' dentro do 'main.py' e definir os ranges dos parâmetros que quer otimizar. 
+# Optimization
+To run an optimization, simply call the 'Optimizer' function within 'main.py' and define the parameter ranges you want to optimize.
 
 # Backtest
-Para rodar um backtest, basta chamar a função 'backtester' dentro do 'main.py' e definir os parâmetros que quer otimizar.  
+To run a backtest, call the 'backtester' function within 'main.py' and define the parameters you want to optimize.
 
-# Lembrete
-Estou filtrando a quantidade de dados para ser utilizado na otimização (1 semana) dentro do 'main.py', porque minha máquina não aguentava a base de dados inteira para rodar os testes. 
-
-
+# Reminder
+I am filtering the amount of data used for optimization (1 week) within 'main.py' because my machine couldn't handle the entire dataset for running tests.
